@@ -1,4 +1,15 @@
 @import "tailwindcss";
+@theme {
+  --font-sans: "Inter", sans-serif;
+  --font-alt: "Nunito", sans-serif;
+  
+  --color-lightgr:   #e8e8e8;
+  --color-grey:      #d6d6e1;
+  --color-softlav:   #b5a2d1;
+  --color-mediumpur: #7c65a5;
+  --color-dark:      #4e454c;
+  --color-muted:     #afa8ae;
+}
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
