@@ -1,30 +1,39 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import AuthModal from "@/features/auth/AuthModal";
+import LoginModal from "@/components/ui/LoginModal";
+import SignupModal from "@/components/ui/SignupModal";
 import Hero from "@/components/ui/Hero";
+import SocietyCategories from "@/components/ui/SocietyCategories";
+
 export default function Landing() {
   const location = useLocation();
   const navigate = useNavigate();
 
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const auth = params.get("auth"); // null | "login" | "register"
-  const open = auth === "login" || auth === "register";
+  const auth = params.get("auth"); // "login" | "register" | null
 
-  // Ensure only "login" or "register" appear; anything else closes it
-  const defaultTab = auth === "register" ? "register" : "login";
+  // helpers
+  const goAuth = (type) =>
+    navigate({ pathname: "/", search: `?auth=${type}` }, { replace: true });
 
-  const closeModal = () => {
-    const p = new URLSearchParams(location.search);
-    p.delete("auth");
-    navigate({ pathname: "/", search: p.toString() }, { replace: true });
-  };
+  const closeModal = () =>
+    navigate({ pathname: "/", search: "" }, { replace: true });
 
-   return (
+  return (
     <>
       <Hero />
-
-      {/* Auth modal still works on top of Hero */}
-      <AuthModal open={open} onClose={closeModal} defaultTab={defaultTab} />
+       <SocietyCategories goAuth={goAuth} />
+      {/* Specific modals instead of AuthModal */}
+      <LoginModal 
+        open={auth === "login"} 
+        onClose={closeModal} 
+        goSignup={() => goAuth("register")} 
+      />
+      <SignupModal 
+        open={auth === "register"} 
+        onClose={closeModal} 
+        goLogin={() => goAuth("login")} 
+      />
     </>
   );
 }
