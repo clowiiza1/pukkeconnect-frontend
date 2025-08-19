@@ -1,0 +1,30 @@
+# Default: store LF in the repo for all text
+* text=auto eol=lf
+
+# Common web files (explicit LF)
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sh   text eol=lf
+package-lock.json text eol=lf
+yarn.lock         text eol=lf
+pnpm-lock.yaml    text eol=lf
+
+# Windows scripts can stay CRLF
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Images/binaries
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
