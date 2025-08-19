@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AuthModal from "@/features/auth/AuthModal";
-
+import Hero from "@/components/ui/Hero";
 export default function Landing() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -19,27 +19,12 @@ export default function Landing() {
     navigate({ pathname: "/", search: p.toString() }, { replace: true });
   };
 
-  return (
-    <section className="mx-auto max-w-6xl p-8">
-      <h1 className="text-4xl font-alt text-mediumpur mb-2">Welcome to PukkeConnect</h1>
-      <p className="text-muted mb-6">Find and join the right society for you.</p>
+   return (
+    <>
+      <Hero />
 
-      <div className="flex gap-3">
-        <button
-          onClick={() => navigate("/?auth=login")}
-          className="rounded bg-mediumpur px-4 py-2 text-white"
-        >
-          Login
-        </button>
-        <button
-          onClick={() => navigate("/?auth=register")}
-          className="rounded border border-mediumpur px-4 py-2 text-mediumpur"
-        >
-          Register
-        </button>
-      </div>
-
+      {/* Auth modal still works on top of Hero */}
       <AuthModal open={open} onClose={closeModal} defaultTab={defaultTab} />
-    </section>
+    </>
   );
 }
