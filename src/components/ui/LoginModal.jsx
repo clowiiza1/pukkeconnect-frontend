@@ -9,14 +9,50 @@ export default function LoginModal({ open, onClose, goSignup }) {
 
   const [studentNumber, setStudentNumber] = useState("");
   const [password, setPassword] = useState("");
+  //Adding mock data for now
+  const mockUsers = [
+  {
+    id: 1,
+    studentNumber: "11111111",
+    password: "student12",
+    name: "Demo Student",
+    role: "student",
+    redirect: "/student",
+  },
+  {
+    id: 2,
+    studentNumber: "00000000",
+    password: "society12",
+    name: "Society Admin",
+    role: "societyAdmin",
+    redirect: "/society-admin",
+  },
+  {
+    id: 3,
+    studentNumber: "99999999",
+    password: "admin12",
+    name: "Platform Admin",
+    role: "admin",
+    redirect: "/admin",
+  },
+];
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    // TODO: Replace with API
-    login({ id: 1, name: "Demo Student", role: "student" });
-    navigate("/student", { replace: true });
+ const handleLogin = (e) => {
+  e.preventDefault();
+
+  // Find matching mock user
+  const user = mockUsers.find(
+    (u) => u.studentNumber === studentNumber && u.password === password
+  );
+
+  if (user) {
+    login(user); // store user in context
+    navigate(user.redirect, { replace: true });
     onClose?.();
-  };
+  } else {
+    alert("Invalid student number or password");
+  }
+};
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
@@ -24,24 +60,32 @@ export default function LoginModal({ open, onClose, goSignup }) {
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
 
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-md rounded-2xl bg-white shadow-xl p-8 space-y-6">
+        <Dialog.Panel className="relative w-full max-w-md rounded-2xl bg-white p-8 space-y-6 
+                        border-2 border-nwupur shadow-[0_0_20px_4px_rgba(142,68,173,0.5)]">
+             <button
+                onClick={onClose}
+                className="absolute top-3 right-3 text-dark/60 hover:text-mediumpur transition text-2xl leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
           {/* Title */}
           <Dialog.Title className="text-2xl font-semibold text-center text-dark">
             Welcome Back
           </Dialog.Title>
-          <p className="text-center text-muted">Sign in with your student number</p>
+          <p className="text-center text-mediumpur">Sign in with your university number</p>
 
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-dark">Student Number</label>
+              <label className="block text-sm font-medium text-dark">University Number</label>
               <input
                 type="text"
                 value={studentNumber}
                 onChange={(e) => setStudentNumber(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-grey px-4 py-2 text-dark 
                            focus:ring-2 focus:ring-mediumpur focus:outline-none"
-                placeholder="Enter student number"
+                placeholder="Enter university number"
                 required
               />
             </div>

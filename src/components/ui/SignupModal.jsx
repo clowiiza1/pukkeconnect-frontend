@@ -35,22 +35,30 @@ export default function SignupModal({ open, onClose, goLogin }) {
 
       <div className="fixed inset-0 flex items-center justify-center p-4">
         {/* Panel with PURE white bg */}
-        <Dialog.Panel className="w-full max-w-md rounded-2xl bg-white shadow-xl p-8 space-y-6">
+        <Dialog.Panel className="relative w-full max-w-md rounded-2xl bg-white p-8 space-y-6 
+                        border-2 border-nwupur shadow-[0_0_20px_4px_rgba(142,68,173,0.5)]">
+                    <button
+            onClick={onClose}
+            className="absolute top-3 right-3 text-dark/60 hover:text-mediumpur transition text-2xl leading-none"
+            aria-label="Close"
+          >
+            ×
+          </button>
           <Dialog.Title className="text-2xl font-semibold text-center text-dark">
             Create Account
           </Dialog.Title>
-          <p className="text-center text-muted">Join PukkeConnect today</p>
+          <p className="text-center text-mediumpur">Join PukkeConnect Today!</p>
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-dark">Student Number</label>
+              <label className="block text-sm font-medium text-dark">University Number</label>
               <input
                 type="text"
                 value={studentNumber}
                 onChange={(e) => setStudentNumber(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-grey px-4 py-2 text-dark 
                            focus:ring-2 focus:ring-mediumpur focus:outline-none"
-                placeholder="Enter student number"
+                placeholder="Enter unversity number"
                 required
               />
             </div>
@@ -134,7 +142,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
             Already have an account?{" "}
             <button
               type="button"
-              onClick={goLogin}  // ✅ this will properly switch modal
+              onClick={goLogin}  
               className="font-semibold text-mediumpur hover:underline"
             >
               Login

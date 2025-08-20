@@ -12,6 +12,7 @@ import {
   faArrowRightFromBracket,
   faPhone,
   faBookOpen,
+  faPager,
 } from "@fortawesome/free-solid-svg-icons";
 
 
@@ -86,21 +87,24 @@ export default function Header() {
           
 
 
-            {isAuthenticated && <NavItem to={dashboardHref}>Dashboard</NavItem>}
+            {isAuthenticated && <NavItem to={dashboardHref}>
+              <FontAwesomeIcon icon={faPager} className="h-4 w-4" />
+              <span>Dashboard</span>
+              </NavItem>}
           </nav>
 
           {/* === Right side actions === */}
           <div className="hidden md:flex items-center gap-3">
             {!isAuthenticated ? (
               <>
-                <button onClick={() => goAuth("login")} className=" hover:text-mediumpur">
+                <button onClick={() => goAuth("login")} className=" hover:text-mediumpur cursor-pointer">
                   Sign In
                 </button>
                 <button
                   onClick={() => goAuth("register")}
                   className="rounded-3xl px-4 py-2 text-white bg-gradient-to-r from-mediumpur to-softlav hover:opacity-90 transition"
                 >
-                  <span className="inline-flex items-center gap-2">
+                  <span className="inline-flex items-center gap-2 cursor-pointer">
                     <FontAwesomeIcon icon={faUserPlus} className="h-4 w-4" />
                     Join Now
                   </span>
@@ -109,7 +113,7 @@ export default function Header() {
             ) : (
               <button
                 onClick={logout}
-                className="rounded-lg border border-dark/30 px-4 py-2 text-dark hover:bg-lightgr"
+                className="rounded-4xl border border-dark/30 px-4 py-2 text-white bg-gradient-to-r from-mediumpur to-softlav hover:opacity-90 transition"
               >
                 Logout
               </button>

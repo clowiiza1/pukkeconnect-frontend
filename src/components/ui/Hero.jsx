@@ -8,7 +8,7 @@ export default function Hero() {
   return (
     <section
       id="hero"
-      className="relative flex flex-col items-center justify-center text-center px-6 py-24
+      className="relative flex flex-col items-center justify-center text-center px-6 min-h-screen
                  bg-gradient-to-b from-mediumpur via-softlav to-white overflow-hidden"
     >
       {/* === Glowing animated blob background === */}
@@ -55,13 +55,13 @@ export default function Hero() {
       <div className="relative z-10 mt-10 flex gap-4">
         <button
           onClick={() => navigate("/?auth=register")}
-          className="rounded-lg bg-gradient-to-r from-softlav to-nwupur px-6 py-3 text-white font-semibold shadow-lg hover:opacity-90 transition"
+          className="rounded-4xl bg-gradient-to-r from-softlav to-nwupur px-6 py-3 text-white font-semibold shadow-lg hover:opacity-90 transition"
         >
           Get Started Today
         </button>
         <button
           onClick={() => navigate("/?auth=login")}
-          className="rounded-lg border border-white/60 bg-white/10 px-6 py-3 text-white font-semibold hover:bg-white/20 transition"
+          className="rounded-4xl border border-white/60 bg-white/10 px-6 py-3 text-white font-semibold hover:bg-white/20 transition"
         >
           I Already Have an Account
         </button>
