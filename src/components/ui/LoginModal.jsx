@@ -17,14 +17,14 @@ export default function LoginModal({ open, onClose, goSignup }) {
     password: "student12",
     name: "Demo Student",
     role: "student",
-    redirect: "/student",
+    redirect: "/",
   },
   {
     id: 2,
     studentNumber: "00000000",
     password: "society12",
     name: "Society Admin",
-    role: "societyAdmin",
+    role: "society-admin",
     redirect: "/society-admin",
   },
   {
@@ -46,8 +46,12 @@ export default function LoginModal({ open, onClose, goSignup }) {
   );
 
   if (user) {
-    login(user); // store user in context
-    navigate(user.redirect, { replace: true });
+    login(user); 
+    if (user.role === "student") {
+  navigate("/", { replace: true });
+ } else {
+   navigate(user.redirect, { replace: true });
+ }
     onClose?.();
   } else {
     alert("Invalid student number or password");
@@ -64,7 +68,7 @@ export default function LoginModal({ open, onClose, goSignup }) {
                         border-2 border-nwupur shadow-[0_0_20px_4px_rgba(142,68,173,0.5)]">
              <button
                 onClick={onClose}
-                className="absolute top-3 right-3 text-dark/60 hover:text-mediumpur transition text-2xl leading-none"
+                className="absolute top-3 right-3 text-dark/60 hover:text-mediumpur transition text-2xl leading-none cursor-pointer"
                 aria-label="Close"
               >
                 ×
@@ -124,7 +128,7 @@ export default function LoginModal({ open, onClose, goSignup }) {
             <button
               type="button"
               onClick={goSignup}
-              className="font-semibold text-mediumpur hover:underline"
+              className="font-semibold text-mediumpur hover:underline cursor-pointer"
             >
               Sign Up
             </button>

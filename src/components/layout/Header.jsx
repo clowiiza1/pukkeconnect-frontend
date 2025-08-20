@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -40,8 +40,9 @@ export default function Header() {
     role === "society-admin" ? "/society-admin" :
     "/student";
 
-  // close mobile menu when route changes
-  useMemo(() => setOpen(false), [location.pathname]);
+  useEffect(() => {
+  setOpen(false);
+}, [location.pathname]);
 
   return (
     <header className="sticky top-0 z-40 w-full bg-gradient-to-b from-white/90 to-white/70 backdrop-blur">
@@ -50,7 +51,7 @@ export default function Header() {
           {/* === Logo ==== */}
           <Link to="/" className="flex items-center gap-2">
             <img
-              src="/icon.png"
+              src="/src/assets/icon1.png"
               alt="PukkeConnect"
               className="h-14 w-14 rounded-full ring-1 ring-muted/40"
             />

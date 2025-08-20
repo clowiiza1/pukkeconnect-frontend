@@ -39,7 +39,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
                         border-2 border-nwupur shadow-[0_0_20px_4px_rgba(142,68,173,0.5)]">
                     <button
             onClick={onClose}
-            className="absolute top-3 right-3 text-dark/60 hover:text-mediumpur transition text-2xl leading-none"
+            className="absolute top-3 right-3 text-dark/60 hover:text-mediumpur transition text-2xl leading-none cursor-point"
             aria-label="Close"
           >
             ×
@@ -143,7 +143,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
             <button
               type="button"
               onClick={goLogin}  
-              className="font-semibold text-mediumpur hover:underline"
+              className="font-semibold text-mediumpur hover:underline cursor-pointer"
             >
               Login
             </button>
