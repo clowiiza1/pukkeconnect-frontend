@@ -55,34 +55,28 @@ export default function Header() {
               alt="PukkeConnect"
               className="h-14 w-14 rounded-full ring-1 ring-muted/40"
             />
-            <span className="font-alt text-lg font-semibold">
-              Pukke{""}
-              <span className="bg-mediumpur to-softlav bg-clip-text text-transparent">
-                Connect
-              </span>
-            </span>
           </Link>
 
          
           {/* === Desktop Nav Bar with FontAwesome icons === */}
           <nav className="hidden md:flex items-center gap-2 ">
             <NavItem to="/">
-              <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
               <span>Home</span>
             </NavItem>
 
             <NavItem to="/about">
-              <FontAwesomeIcon icon={faBookOpen} className="h-4 w-4" />
               <span>About</span>
             </NavItem>
 
             <NavItem to="/societies">
-              <FontAwesomeIcon icon={faUsers} className="h-4 w-4" />
               <span>Societies</span>
             </NavItem>
 
+            <NavItem to="/FAQ">
+              <span>FAQ</span>
+            </NavItem>
+
             <NavItem to="/contact">
-              <FontAwesomeIcon icon={faPhone} className="h-4 w-4" />
               <span>Contact</span>
             </NavItem>
           

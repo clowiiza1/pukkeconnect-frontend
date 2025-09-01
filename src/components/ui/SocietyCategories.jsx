@@ -6,37 +6,37 @@ const categories = [
   {
     title: "Academic Societies",
     description: "Enhance your studies with discipline-specific groups and academic excellence clubs.",
-    img: "/images/Academics.jpg",
+    img: "/src/assets/Academics.jpg",
     popular: ["Engineering Society", "Business Club", "CS&IS Students Association"],
   },
   {
     title: "Community Service",
     description: "Make a difference through volunteer work and community outreach programs.",
-    img: "/images/CommunityService.jpg",
+    img: "/src/assets/CommunityService.jpg",
     popular: ["Community Outreach", "Environmental Action", "Charity Drive"],
   },
   {
     title: "Sports & Recreation",
     description: "Stay active and competitive with various sports clubs and fitness groups.",
-    img: "/images/Sports.png",
+    img: "/src/assets/Sports.png",
     popular: ["Rugby Club", "Tennis Society", "Fitness Enthusiasts"],
   },
   {
     title: "Music & Performance",
     description: "Showcase your talents in music, dance, and performing arts.",
-    img: "/images/Music.jpeg",
+    img: "/src/assets/Music.jpeg",
     popular: ["Choir Society", "Dance Club", "Music Ensemble"],
   },
   {
     title: "Arts & Culture",
     description: "Express yourself through creative and cultural organizations.",
-    img: "/images/Arts.jpeg",
+    img: "/src/assets/Arts.jpeg",
     popular: ["Drama Society", "Photography Club", "Cultural Heritage"],
   },
   {
     title: "Technology & Innovation",
     description: "Explore cutting-edge technology and innovation with tech-focused societies.",
-    img: "/images/Tech.jpg",
+    img: "/src/assets/Tech.jpg",
     popular: ["Coding Club", "Robotics Society", "Tech Entrepreneurs"],
   },
 ];
@@ -89,7 +89,7 @@ export default function SocietyCategories({ goAuth }) {
           {categories.map((cat, i) => (
             <div key={i} className="px-3">
               <div className="rounded-xl overflow-hidden shadow-md bg-white hover:shadow-lg transition">
-                <img src={cat.img} alt={cat.title} className="h-40 w-full object-cover" />
+                <img src={cat.img} alt={cat.title} className="h-60 w-full object-cover" />
                 <div className="p-4">
                   <h2 className="text-xl font-semibold text-dark">{cat.title}</h2>
                   <p className="mt-2 text-sm text-muted">{cat.description}</p>
