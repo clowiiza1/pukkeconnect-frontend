@@ -2,8 +2,11 @@ import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import LoginModal from "@/components/ui/LoginModal";
 import SignupModal from "@/components/ui/SignupModal";
+import ForgotPasswordModal from "@/components/ui/ForgotPasswordModal";
 import Hero from "@/components/ui/Hero";
+import About from "@/components/ui/About";
 import SocietyCategories from "@/components/ui/SocietyCategories";
+import FAQ from "@/components/ui/FAQ";
 
 export default function Landing() {
   const location = useLocation();
@@ -22,17 +25,25 @@ export default function Landing() {
   return (
     <>
       <Hero />
-       <SocietyCategories goAuth={goAuth} />
+      <About goAuth={goAuth} />
+      <SocietyCategories goAuth={goAuth} />
+      <FAQ /> 
+      
       {/* Specific modals instead of AuthModal */}
       <LoginModal 
         open={auth === "login"} 
         onClose={closeModal} 
         goSignup={() => goAuth("register")} 
+        goForgot={() => goAuth("forgot")}
       />
       <SignupModal 
         open={auth === "register"} 
         onClose={closeModal} 
         goLogin={() => goAuth("login")} 
+      />
+      <ForgotPasswordModal 
+        open={auth === "forgot"} 
+        onClose={closeModal} 
       />
     </>
   );
