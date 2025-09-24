@@ -2,6 +2,7 @@ import { Dialog } from "@headlessui/react";
 import { useEffect, useState } from "react"; // <-- add useEffect
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { register as registerApi, login as loginApi } from "@/services/AuthAPIs";
 
 export default function SignupModal({ open, onClose, goLogin }) {
   const { login } = useAuth();
@@ -11,18 +12,26 @@ export default function SignupModal({ open, onClose, goLogin }) {
   const [name, setName] = useState("");
   const [surname, setSurname] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [major, setMajor] = useState("");
+  const [campus, setCampus] = useState("Potchefstroom");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");           // <-- NEW
+  const [error, setError] = useState("");           
+  const [loading, setLoading] = useState(false);
 
   const resetForm = () => {
     setStudentNumber("");
     setName("");
     setSurname("");
     setEmail("");
+    setPhoneNumber("");
+    setMajor("");
+    setCampus("Potchefstroom");
     setPassword("");
     setConfirmPassword("");
     setError("");
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -34,18 +43,69 @@ export default function SignupModal({ open, onClose, goLogin }) {
     onClose?.();
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
 
+    // client-side checks
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");          // <-- inline error instead of alert
+      setError("Passwords do not match.");
       return;
     }
 
-    // TODO: Replace with API call
-    login({ id: 1, name: `${name} ${surname}`, role: "student" });
-    navigate("/", { replace: true });               // students land on "/"
-    handleClose();                                  // clears + closes
+    const phoneDigits = (phoneNumber || "").replace(/\D+/g, "");
+    if (phoneDigits.length !== 10) {
+      setError("Phone number must be 10 digits (e.g. 0823456789).");
+      return;
+    }
+
+    if (!/^\d{8}$/.test(studentNumber)) {
+      setError("University number must be 8 digits.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Build canonical NWU email from the student number and ALWAYS send that
+      // (backend expects email derived this way)
+      const uniEmail = `${studentNumber.trim().toLowerCase()}@mynwu.ac.za`;
+
+      // call register endpoint (we include email explicitly as the derived NWU email)
+      const regResp = await registerApi({
+        firstName: name.trim(),
+        lastName: surname.trim(),
+        universityNumber: studentNumber.trim(),
+        email: uniEmail,               // <-- send derived NWU email here
+        password,
+        phoneNumber: phoneDigits,
+        campus: campus || undefined,
+        major: major?.trim() || undefined,
+      });
+
+      // After successful register, login to get token and populate auth state
+      const loginResp = await loginApi({ universityNumber: studentNumber.trim(), password });
+
+      // If your AuthContext expects a user object, try to populate it
+      if (loginResp?.user) {
+        try {
+          login(loginResp.user);
+        } catch {
+          // ignore if shape differs; loginApi should have saved token already
+        }
+      }
+
+      navigate("/", { replace: true });
+      handleClose();
+    } catch (err) {
+      console.error("Signup error:", err);
+      // common error shapes from your authService.formatAxiosError
+      if (err?.data?.message) setError(err.data.message);
+      else if (err?.message) setError(err.message);
+      else setError("Signup failed — please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Clear error as user types
@@ -65,6 +125,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
             onClick={handleClose}
             className="absolute top-3 right-3 text-dark/60 hover:text-mediumpur transition text-2xl leading-none cursor-pointer"
             aria-label="Close"
+            disabled={loading}
           >
             ×
           </button>
@@ -75,7 +136,6 @@ export default function SignupModal({ open, onClose, goLogin }) {
           </div>
 
           {/* Title */}
-          
           <p className="text-1xl font-semibold text-center text-dark">Join PukkeConnect today and find your perferct society match!</p>
 
           {/* Inline error */}
@@ -102,6 +162,8 @@ export default function SignupModal({ open, onClose, goLogin }) {
                   className="w-full pl-9 rounded-lg border border-gray-300 px-3 py-2 text-dark text-sm focus:ring-2 focus:ring-mediumpur focus:outline-none"
                   placeholder="Enter university number"
                   required
+                  inputMode="numeric"
+                  pattern="\d{8}"
                 />
               </div>
             </div>
@@ -147,24 +209,65 @@ export default function SignupModal({ open, onClose, goLogin }) {
               </div>
             </div>
 
-            {/* Email */}
+            {/* Phone (required by backend) */}
             <div className="relative">
-              <label className="block text-sm font-medium text-dark">Email</label>
+              <label className="block text-sm font-medium text-dark">Phone number</label>
               <div className="mt-1 relative">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h2l3.6 7.59-1.35 2.44a1 1 0 00.95 1.41H19v-2H8.42l1.1-2h7.45a1 1 0 00.92-.63l3.24-7.27A1 1 0 0020 2H6.21l-.94-2H1v2h2z" />
                   </svg>
                 </span>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={clearOnChange(setEmail)}
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={clearOnChange(setPhoneNumber)}
                   className="w-full pl-9 rounded-lg border border-gray-300 px-3 py-2 text-dark text-sm focus:ring-2 focus:ring-mediumpur focus:outline-none"
-                  placeholder="Enter email"
+                  placeholder="0823456789"
                   required
-                  autoComplete="email"
+                  inputMode="tel"
                 />
+              </div>
+            </div>
+
+            {/* Campus & Major */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <label className="block text-sm font-medium text-dark">Campus</label>
+                <div className="mt-1 relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4" />
+                    </svg>
+                  </span>
+                  <select
+                    value={campus}
+                    onChange={(e) => { setCampus(e.target.value); if (error) setError(""); }}
+                    className="w-full pl-9 rounded-lg border border-gray-300 px-3 py-2 text-dark text-sm focus:ring-2 focus:ring-mediumpur focus:outline-none"
+                  >
+                    <option>Potchefstroom</option>
+                    <option>Mafikeng</option>
+                    <option>Vanderbijlpark</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="relative">
+                <label className="block text-sm font-medium text-dark">Major (optional)</label>
+                <div className="mt-1 relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4" />
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    value={major}
+                    onChange={clearOnChange(setMajor)}
+                    className="w-full pl-9 rounded-lg border border-gray-300 px-3 py-2 text-dark text-sm focus:ring-2 focus:ring-mediumpur focus:outline-none"
+                    placeholder="Computer Science"
+                  />
+                </div>
               </div>
             </div>
 
@@ -189,7 +292,6 @@ export default function SignupModal({ open, onClose, goLogin }) {
               </div>
             </div>
 
-
             {/* Confirm Password */}
             <div className="relative">
               <label className="block text-sm font-medium text-dark">Confirm Password</label>
@@ -211,12 +313,12 @@ export default function SignupModal({ open, onClose, goLogin }) {
               </div>
             </div>
 
-
             <button
               type="submit"
+              disabled={loading}
               className="w-full rounded-lg bg-gradient-to-r from-mediumpur to-softlav py-2 text-white font-semibold shadow hover:opacity-90 transition"
             >
-              Sign Up
+              {loading ? "Signing up..." : "Sign Up"}
             </button>
           </form>
 
@@ -226,6 +328,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
               type="button"
               onClick={() => { resetForm(); goLogin?.(); }}
               className="font-semibold text-mediumpur hover:underline cursor-pointer"
+              disabled={loading}
             >
               Login
             </button>
