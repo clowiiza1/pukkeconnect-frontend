@@ -1,3 +1,4 @@
+
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import PublicLayout from "@/components/layout/PublicLayout";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -5,7 +6,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import Landing from "@/pages/public/Landing";
 import NotFound from "@/pages/public/NotFound";
 
-import StudentDashboard from "@/pages/studentdashboard/index.jsx";
+import DashboardPage from "@/pages/studentdashboard/index.jsx";
 import SocietyAdminDashboard from "@/pages/societyadmindashboard/index.jsx";
 import AdminDashboard from "@/pages/admindashboard/index.jsx";
 
@@ -31,7 +32,7 @@ const router = createBrowserRouter([
         path: "/student",
         element: (
           <RoleRoute allowed={["student"]}>
-            <StudentDashboard />
+            <DashboardPage />
           </RoleRoute>
         ),
       },
