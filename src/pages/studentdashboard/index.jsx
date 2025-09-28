@@ -49,7 +49,9 @@ function Shell({ page, setPage, children }) {
       {/* Topbar */}
       <div
         className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/70"
-        style={{ borderBottom: `1px solid ${colors.mist}` }}
+        style={{ borderBottom: `1px solid ${colors.mist}`,
+        background: "white",
+       }}
       >
         {/* responsive horizontal padding */}
         <div className="mx-auto max-w-7xl py-3 flex items-center gap-3 px-4 md:px-6 lg:px-8">
