@@ -163,33 +163,91 @@ function Shell({ page, setPage, children }) {
       </div>
 
       <div className="mx-auto max-w-7xl py-6 grid grid-cols-12 gap-6 px-4 md:px-6 lg:px-8">
+
         {/* Sidebar */}
-        <aside className={`col-span-12 md:col-span-3 lg:col-span-2 ${open ? "block" : "hidden md:block"}`}>
-          <div className="rounded-3xl p-3 sticky top-20" style={{ background: "white", border: `1px solid ${colors.mist}` }}>
-            <nav className="space-y-1">
+        <aside
+          className={`fixed top-0 left-0 h-full w-64 z-40 transition-transform ${
+            open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          }`}
+        >
+          <div
+            className="flex flex-col h-full p-4 rounded-r-3xl"
+            style={{
+              background: "white",
+              borderRight: `1px solid ${colors.mist}`,
+            }}
+          >
+            {/* Logo / Header */}
+            <div className="mb-8 px-2 flex items-center">
+              <img 
+                src="/src/assets/logo.png" 
+                alt="meetmind.ai logo" 
+                className="h-35 w-auto"
+              />
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 space-y-1">
               {nav.map((item) => (
                 <button
                   key={item.key}
                   onClick={() => setPage(item.key)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-left transition hover:bg-mist ${
-                    page === item.key ? "text-white" : "text-gray-800"
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-left transition ${
+                    page === item.key
+                      ? "bg-lilac text-gray-700 shadow-sm"
+                      : "text-gray-700 hover:bg-mist"
                   }`}
-                  style={{ background: page === item.key ? colors.lilac : "transparent" }}
                 >
-                  <div className="flex-shrink-0">{item.icon}</div>
+                  {/* Icon wrapper changes color with active state */}
+                  <div
+                    className={`flex-shrink-0 ${
+                      page === item.key ? "text-gray-600" : "text-gray-600"
+                    }`}
+                  >
+                    {item.icon}
+                  </div>
                   <span className="text-sm font-medium truncate">{item.label}</span>
-                  {page === item.key && <ChevronRight className="ml-auto flex-shrink-0" size={16} />}
                 </button>
               ))}
             </nav>
 
-            <div className="mt-4 p-3 rounded-2xl" style={{ background: colors.mist }}>
-              <div className="text-xs opacity-70 mb-1">Managing</div>
-              <div className="text-sm font-semibold">AI & Robotics Society</div>
-              <div className="text-xs opacity-70">Role: Admin</div>
+            {/* Footer Section */}
+            <div>
+              <div
+                className="mb-4 p-3 rounded-2xl"
+                style={{ background: colors.mist }}
+              >
+                <div className="text-xs opacity-70 mb-1">Managing</div>
+                <div className="text-sm font-semibold">AI & Robotics Society</div>
+                <div className="text-xs opacity-70">Role: Admin</div>
+              </div>
+
+              {/* Logout Button */}
+              <button
+                onClick={() => console.log("Logging out...")}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-left transition text-gray-700 hover:bg-red-100 hover:text-red-600"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 12H3m12-6l6 6-6 6"
+                  />
+                </svg>
+                <span className="text-sm font-medium">Logout</span>
+              </button>
             </div>
           </div>
         </aside>
+
+
 
         {/* Main */}
         <main className="col-span-12 md:col-span-9 lg:col-span-10">
@@ -339,37 +397,186 @@ function MembersPage() {
 }
 
 function EventsPage() {
+  const [activeTab, setActiveTab] = useState("My Events");
+
   return (
-    <Card
-      title="Events"
-      subtitle="Create and manage your society events"
-      action={
-        <button className="text-sm rounded-xl px-3 py-1 text-white hover:opacity-90 transition-opacity" style={{ background: colors.plum }}>
-          <Plus size={16} className="inline mr-1" /> New event
+    <Card title="Events" subtitle="Manage your society events">
+      {/* Tabs Header */}
+      <div className="flex border-b border-gray-300 mb-4">
+        <button
+          className={`px-4 py-2 -mb-px font-medium ${
+            activeTab === "My Events"
+              ? "border-b-2 border-plum text-plum"
+              : "text-gray-500"
+          }`}
+          onClick={() => setActiveTab("My Events")}
+        >
+          My Events
         </button>
-      }
-    >
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {mockEvents.map((e) => (
-          <div key={e.id} className="rounded-3xl p-4 space-y-2" style={{ background: "white", border: `1px solid ${colors.mist}` }}>
-            <div className="rounded-xl px-3 py-1 inline-block text-xs text-white" style={{ background: colors.lilac }}>
-              {e.date}
+        <button
+          className={`px-4 py-2 -mb-px font-medium ${
+            activeTab === "Create Event"
+              ? "border-b-2 border-plum text-plum"
+              : "text-gray-500"
+          }`}
+          onClick={() => setActiveTab("Create Event")}
+        >
+          Create Event
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "My Events" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {mockEvents.map((e) => (
+            <div
+              key={e.id}
+              className="rounded-3xl p-4 space-y-2"
+              style={{ background: "white", border: `1px solid ${colors.mist}` }}
+            >
+              <div
+                className="rounded-xl px-3 py-1 inline-block text-xs text-white"
+                style={{ background: colors.lilac }}
+              >
+                {e.date}
+              </div>
+              <div className="font-semibold">{e.title}</div>
+              <div className="text-xs opacity-70">
+                {e.time} • {e.location}
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Pill>{e.rsvp} going</Pill>
+                <div className="flex gap-2">
+                  <button
+                    className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors flex items-center gap-1"
+                    style={{ background: colors.mist }}
+                  >
+                    <Edit3 size={14} /> Edit
+                  </button>
+                  <button
+                    className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors flex items-center gap-1"
+                    style={{ background: colors.mist }}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="font-semibold">{e.title}</div>
-            <div className="text-xs opacity-70">{e.time} • {e.location}</div>
-            <div className="flex items-center justify-between gap-2">
-              <Pill>{e.rsvp} going</Pill>
-              <div className="flex gap-2">
-                <button className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors flex items-center gap-1" style={{ background: colors.mist }}><Edit3 size={14} /> Edit</button>
-                <button className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors flex items-center gap-1" style={{ background: colors.mist }}><Trash2 size={14} /> Delete</button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "Create Event" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Event Form */}
+          <div>
+            {/* Event Poster Upload */}
+            <div className="text-xs mb-1 opacity-70">Event Poster</div>
+            <div
+            
+              className="w-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-10 mb-6 cursor-pointer hover:bg-mist/50 transition"
+              style={{ borderColor: colors.mist }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-10 w-10 text-gray-400 mb-2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                />
+              </svg>
+              <button
+                className="px-4 py-2 rounded-xl text-white text-sm hover:opacity-90 transition"
+                style={{ background: colors.plum }}
+              >
+                Browse File
+              </button>
+            </div>
+
+            {/* Event Details Form */}
+            <div className="grid grid-cols-1 gap-4">
+              <label className="block">
+                <div className="text-xs mb-1 opacity-70">Event Name</div>
+                <input
+                  className="w-full border border-gray-400 rounded-[7px] px-3 py-2 outline-none placeholder:text-sm
+                            focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                  style={{ background: "white" }}
+                  placeholder="AI & Robotics Workshop"
+                />
+              </label>
+
+              <label className="block">
+                <div className="text-xs mb-1 opacity-70">Description</div>
+                <textarea
+                  rows={4}
+                  className="w-full border border-gray-400 rounded-[7px] px-3 py-2 outline-none placeholder:text-sm
+                            focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                  style={{ background: "white" }}
+                  placeholder="Briefly describe your event..."
+                />
+              </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="block">
+                  <div className="text-xs mb-1 opacity-70">Date</div>
+                  <input
+                    type="date"
+                    className="w-full border border-gray-400 rounded-[7px] px-3 py-2 outline-none placeholder:text-sm
+                              focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                    style={{ background: "white" }}
+                  />
+                </label>
+
+                <label className="block">
+                  <div className="text-xs mb-1 opacity-70">Time</div>
+                  <input
+                    type="time"
+                    className="w-full border border-gray-400 rounded-[7px] px-3 py-2 outline-none placeholder:text-sm
+                              focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                    style={{ background: "white" }}
+                  />
+                </label>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-4 flex gap-2">
+                <button
+                  className="rounded-2xl px-4 py-2 text-white hover:opacity-90 transition-opacity"
+                  style={{ background: colors.plum }}
+                >
+                  Submit Event
+                </button>
+                <button
+                  className="rounded-2xl px-4 py-2 hover:bg-mist/80 transition-colors"
+                  style={{ background: colors.mist }}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
-        ))}
-      </div>
+
+          {/* Pending Message */}
+          <div className="text-sm text-gray-700 space-y-2">
+            <ul className="list-disc pl-5">
+              <li>
+                Once you submit your event, it will be pending review from the system administrator. Once your event has been approved you will receive a message updating you about this.
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
+
     </Card>
   );
 }
+
 
 function PostsPage() {
   return (
@@ -426,41 +633,223 @@ function RequestsPage() {
   );
 }
 
+
 function SettingsPage() {
+  const [activeTab, setActiveTab] = useState("Profile");
+
   return (
-    <Card title="Settings" subtitle="Update society profile and preferences">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: colors.paper }}>
-          <div className="size-16 rounded-xl grid place-items-center text-white text-xl font-bold flex-shrink-0" style={{ background: colors.plum }}>
-            AR
+    <Card title="Settings" subtitle="Update society profile, security and preferences">
+      {/* Tabs Header */}
+        <div className="flex border-b border-gray-300 mb-4">
+          <button
+            className={`px-4 py-2 -mb-px font-medium ${
+              activeTab === "Profile"
+                ? "border-b-2 border-plum text-plum"
+                : "text-gray-500"
+            }`}
+            onClick={() => setActiveTab("Profile")}
+          >
+            Profile
+          </button>
+          <button
+            className={`px-4 py-2 -mb-px font-medium ${
+              activeTab === "Security"
+                ? "border-b-2 border-plum text-plum"
+                : "text-gray-500"
+            }`}
+            onClick={() => setActiveTab("Security")}
+          >
+            Security
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === "Profile" && (
+          <div>
+            {/* Upload Box */}
+            <div
+              className="w-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-10 mb-6 cursor-pointer hover:bg-mist/50 transition"
+              style={{ borderColor: colors.mist }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-10 w-10 text-gray-400 mb-2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                />
+              </svg>
+              <button
+                className="px-4 py-2 rounded-xl text-white text-sm hover:opacity-90 transition"
+                style={{ background: colors.plum }}
+              >
+                Browse File
+              </button>
+            </div>
+
+            {/* Profile Form */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="block">
+                <div className="text-xs mb-1 opacity-70">Society name</div>
+                <input
+                  className="w-full border border-gray-400 rounded-[7px] px-3 py-2 outline-none placeholder:text-sm
+                            focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                  style={{ background: "white" }}
+                  placeholder="AI & Robotics Society"
+                />
+              </label>
+              <label className="block">
+                <div className="text-xs mb-1 opacity-70">Category</div>
+                <input
+                  className="w-full border border-gray-400 rounded-[7px] px-3 py-2 outline-none placeholder:text-sm
+                            focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                  style={{ background: "white" }}
+                  placeholder="Technology"
+                />
+              </label>
+              <label className="block md:col-span-2">
+                <div className="text-xs mb-1 opacity-70">About Society</div>
+                <textarea
+                  rows={4}
+                  className="w-full border border-gray-400 rounded-[7px] px-3 py-2 outline-none placeholder:text-sm
+                            focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                  style={{ background: "white" }}
+                  placeholder="We host weekly workshops on ML, robotics, and hack nights."
+                />
+              </label>
+            </div>
+
+            {/* Actions */}
+            <div className="mt-4 flex gap-2">
+              <button
+                className="rounded-2xl px-4 py-2 text-white hover:opacity-90 transition-opacity"
+                style={{ background: colors.plum }}
+              >
+                Save changes
+              </button>
+              <button
+                className="rounded-2xl px-4 py-2 hover:bg-mist/80 transition-colors"
+                style={{ background: colors.mist }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-          <div className="flex-1">
-            <div className="text-sm opacity-70 mb-1">Logo</div>
-            <button className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors flex items-center gap-1" style={{ background: colors.mist }}>
-              <ImagePlus size={14} /> Upload new
+        )}
+
+        {activeTab === "Security" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {/* Admin Name */}
+          <div className="relative">
+            <label className="block text-xs mb-1 opacity-70">Admin Name</label>
+            <input
+              type="text"
+              className="w-full rounded-[7px] border border-gray-400 px-3 py-2 outline-none placeholder:text-sm
+                        focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+              placeholder="Enter admin name"
+              style={{ background: "white" }}
+            />
+          </div>
+
+          {/* Admin Surname */}
+          <div className="relative">
+            <label className="block text-xs mb-1 opacity-70">Admin Surname</label>
+            <input
+              type="text"
+              className="w-full rounded-[7px] border border-gray-400 px-3 py-2 outline-none placeholder:text-sm
+                        focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+              placeholder="Enter admin surname"
+              style={{ background: "white" }}
+            />
+          </div>
+
+          {/* Email */}
+          <div className="relative md:col-span-2">
+            <label className="block text-xs mb-1 opacity-70">Email Address</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/>
+                </svg>
+              </span>
+              <input
+                type="email"
+                className="w-full pl-9 rounded-[7px] border border-gray-400 px-3 py-2 outline-none placeholder:text-sm
+                          focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                placeholder="your@email.com"
+                style={{ background: "white" }}
+              />
+            </div>
+          </div>
+
+          {/* Password */}
+          <div className="relative">
+            <label className="block text-xs mb-1 opacity-70">Password</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/>
+                </svg>
+              </span>
+              <input
+                type="password"
+                className="w-full pl-9 rounded-[7px] border border-gray-400 px-3 py-2 outline-none placeholder:text-sm
+                          focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                placeholder="Enter new password"
+                style={{ background: "white" }}
+              />
+            </div>
+          </div>
+
+          {/* Confirm Password */}
+          <div className="relative">
+            <label className="block text-xs mb-1 opacity-70">Confirm Password</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/>
+                </svg>
+              </span>
+              <input
+                type="password"
+                className="w-full pl-9 rounded-[7px] border border-gray-400 px-3 py-2 outline-none placeholder:text-sm
+                          focus:border-[1px] focus:border-gray-400 focus:ring-1 focus:ring-lilac"
+                placeholder="Confirm new password"
+                style={{ background: "white" }}
+              />
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="mt-4 flex gap-2 md:col-span-2">
+            <button
+              className="rounded-2xl px-4 py-2 text-white hover:opacity-90 transition-opacity"
+              style={{ background: colors.plum }}
+            >
+              Update Security
+            </button>
+            <button
+              className="rounded-2xl px-4 py-2 hover:bg-mist/80 transition-colors"
+              style={{ background: colors.mist }}
+            >
+              Cancel
             </button>
           </div>
         </div>
-        <label className="block">
-          <div className="text-xs mb-1 opacity-70">Society name</div>
-          <input className="w-full rounded-2xl px-3 py-2 outline-none focus:ring-2 focus:ring-lilac" style={{ background: colors.mist }} placeholder="AI & Robotics Society" />
-        </label>
-        <label className="block">
-          <div className="text-xs mb-1 opacity-70">Category</div>
-          <input className="w-full rounded-2xl px-3 py-2 outline-none focus:ring-2 focus:ring-lilac" style={{ background: colors.mist }} placeholder="Tech" />
-        </label>
-        <label className="block md:col-span-2">
-          <div className="text-xs mb-1 opacity-70">About</div>
-          <textarea rows={4} className="w-full rounded-2xl px-3 py-2 outline-none focus:ring-2 focus:ring-lilac" style={{ background: colors.mist }} placeholder="We host weekly workshops on ML, robotics, and hack nights." />
-        </label>
-      </div>
-      <div className="mt-4 flex gap-2">
-        <button className="rounded-2xl px-4 py-2 text-white hover:opacity-90 transition-opacity" style={{ background: colors.plum }}>Save changes</button>
-        <button className="rounded-2xl px-4 py-2 hover:bg-mist/80 transition-colors" style={{ background: colors.mist }}>Cancel</button>
-      </div>
+      )}
+
     </Card>
   );
 }
+
+
 
 function MetricsPage() {
   return (
