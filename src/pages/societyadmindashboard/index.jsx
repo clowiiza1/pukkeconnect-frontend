@@ -165,9 +165,9 @@ function Shell({ page, setPage, children }) {
       
 
       <div className="mx-auto max-w-7xl py-6 grid grid-cols-12 gap-6 px-4 md:px-6 lg:px-8">
+      
 
-
-        {/* Sidebar */}
+     
       {/* Sidebar */}
 <aside className={`col-span-12 md:col-span-3 lg:col-span-2 ${open ? "block" : "hidden md:block"} md:ml-[-1rem]`}>
   <div 
@@ -777,6 +777,8 @@ function MembersPage() {
 
 
 //====== Events Page =====//
+//====== Events Page =====//
+
 //====== Events Page =====//
 function EventsPage() {
   const [events, setEvents] = useState(mockEvents);
