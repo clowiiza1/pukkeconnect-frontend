@@ -211,22 +211,6 @@ function Shell({ page, setPage, children, student, studentLoading }) {
               PukkeConnect
             </span>
           </Link>
-          <div className="ml-auto flex items-center gap-2 w-full md:w-auto">
-            <div className="relative flex-1 md:flex-none md:w-[360px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60" size={18} />
-              <input
-                placeholder="Search societies, events, posts…"
-                className="w-full rounded-2xl pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-lilac"
-                style={{ background: colors.mist, color: "#111" }}
-              />
-            </div>
-            <button
-              className="rounded-2xl px-3 py-2 text-white hidden md:block hover:opacity-90 transition-opacity"
-              style={{ background: colors.plum }}
-            >
-              New Post
-            </button>
-          </div>
         </div>
       </div>
 
@@ -2946,17 +2930,317 @@ function RecommendationSkeleton() {
   );
 }
 
-function QuizPage() {
-  return (
-    <Card title="Matchmaking Quiz" subtitle="Answer a few quick questions to personalize your recommendations.">
-      <div className="space-y-4">
-        <QBlock q="Which activities interest you most?" opts={["Tech & Coding", "Outdoors", "Arts & Culture", "Entrepreneurship"]} />
-        <QBlock q="When are you usually available?" opts={["Weekdays", "Evenings", "Weekends", "Flexible"]} />
-        <QBlock q="Preferred group size?" opts={["Small (<20)", "Medium (20-50)", "Large (50+)"]} />
-        <div className="flex gap-2">
-          <button className="rounded-2xl px-4 py-2 hover:bg-mist/80 transition-colors" style={{ background: colors.mist }}>Save draft</button>
-          <button className="rounded-2xl px-4 py-2 text-white hover:opacity-90 transition-opacity" style={{ background: colors.plum }}>Get matches</button>
+function QuizPage({ onRefreshRecommendations }) {
+  const { push } = useToast();
+  const { user } = useAuth();
+  const [quiz, setQuiz] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [submitSuccess, setSubmitSuccess] = useState(null);
+
+  // Load quiz on mount
+  useEffect(() => {
+    const loadQuiz = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchMatchmakerQuiz();
+        setQuiz(data);
+        // Initialize answer state
+        const initialAnswers = {};
+        (data?.questions ?? []).forEach((q) => {
+          initialAnswers[q.questionId] = { questionId: q.questionId, optionIds: [], freeText: "" };
+        });
+        setAnswers(initialAnswers);
+      } catch (err) {
+        setError(err);
+        if (err?.status === 404) {
+          push({ title: "Quiz not available", description: "The matchmaking quiz is not configured yet.", tone: "warning" });
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadQuiz();
+  }, [push]);
+
+
+  const handleAnswerChange = (questionId, kind, value) => {
+    setAnswers((prev) => {
+      const current = prev[questionId] || { questionId, optionIds: [], freeText: "" };
+      if (kind === "text") {
+        return { ...prev, [questionId]: { ...current, freeText: value, optionIds: [] } };
+      }
+      if (kind === "single") {
+        return { ...prev, [questionId]: { ...current, optionIds: [value], freeText: "" } };
+      }
+      if (kind === "multi") {
+        const isSelected = current.optionIds.includes(value);
+        const updatedOptions = isSelected
+          ? current.optionIds.filter((id) => id !== value)
+          : [...current.optionIds, value];
+        return { ...prev, [questionId]: { ...current, optionIds: updatedOptions, freeText: "" } };
+      }
+      return prev;
+    });
+  };
+
+  const validateAnswers = () => {
+    if (!quiz?.questions) return { valid: false, message: "No questions found" };
+
+    for (const question of quiz.questions) {
+      const answer = answers[question.questionId];
+      const isOptional = question.prompt?.toLowerCase().includes("optional");
+
+      // Skip validation for optional questions
+      if (isOptional) continue;
+
+      if (!answer) return { valid: false, message: `Please answer: ${question.prompt}` };
+
+      if (question.kind === "text") {
+        if (!answer.freeText || !answer.freeText.trim()) {
+          return { valid: false, message: `Please provide text for: ${question.prompt}` };
+        }
+      } else {
+        if (!answer.optionIds || answer.optionIds.length === 0) {
+          return { valid: false, message: `Please select an option for: ${question.prompt}` };
+        }
+      }
+    }
+    return { valid: true };
+  };
+
+  const handleSubmit = async () => {
+    const validation = validateAnswers();
+    if (!validation.valid) {
+      push({ title: "Incomplete quiz", description: validation.message, tone: "warning" });
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    setSubmitSuccess(null);
+
+    try {
+      const answerArray = Object.values(answers)
+        .filter((answer) => {
+          // Include answer if it has either freeText or optionIds
+          const hasFreeText = answer.freeText && answer.freeText.trim();
+          const hasOptions = answer.optionIds && answer.optionIds.length > 0;
+          return hasFreeText || hasOptions;
+        })
+        .map((answer) => ({
+          questionId: answer.questionId,
+          ...(answer.freeText && answer.freeText.trim() ? { freeText: answer.freeText.trim() } : {}),
+          ...(answer.optionIds.length > 0 ? { optionIds: answer.optionIds } : {}),
+        }));
+
+      const result = await submitMatchmakerQuizAnswers(answerArray);
+      setSubmitSuccess(result);
+      push({
+        title: "Quiz submitted!",
+        description: `You're now matched with ${result.totalInterests} interests`,
+        tone: "success"
+      });
+
+      // Refresh recommendations
+      if (onRefreshRecommendations) {
+        onRefreshRecommendations();
+      }
+    } catch (err) {
+      setError(err);
+      if (err?.status === 400) {
+        push({ title: "Invalid answers", description: err?.message || "Please check your responses", tone: "error" });
+      } else if (err?.status === 409) {
+        push({ title: "Already submitted", description: "You can retake the quiz to update your interests", tone: "info" });
+      } else {
+        push({ title: "Submit failed", description: err?.message || "Please try again", tone: "error" });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+
+  if (loading) {
+    return (
+      <Card title="Matchmaking Quiz" subtitle="Loading your personalized quiz...">
+        <div className="space-y-4 animate-pulse">
+          <div className="h-20 rounded-2xl" style={{ background: colors.paper }}></div>
+          <div className="h-20 rounded-2xl" style={{ background: colors.paper }}></div>
+          <div className="h-20 rounded-2xl" style={{ background: colors.paper }}></div>
         </div>
+      </Card>
+    );
+  }
+
+  if (error && error?.status === 404) {
+    return (
+      <Card title="Quiz Not Available" subtitle="The matchmaking quiz hasn't been configured yet.">
+        <div className="text-center py-8">
+          <p className="text-gray-600 mb-4">Check back later or manage your interests from your profile.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card title="Error" subtitle="Failed to load quiz">
+        <div className="text-center py-8">
+          <p className="text-red-600 mb-4">{error?.message || "Something went wrong"}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-2xl px-4 py-2 hover:bg-mist/80 transition-colors"
+            style={{ background: colors.mist }}
+          >
+            Retry
+          </button>
+        </div>
+      </Card>
+    );
+  }
+
+
+  if (submitSuccess) {
+    return (
+      <Card title="Quiz Completed! 🎉" subtitle="Your recommendations are ready">
+        <div className="space-y-4">
+          <div className="rounded-2xl p-4" style={{ background: colors.paper }}>
+            <h4 className="font-semibold mb-2" style={{ color: colors.plum }}>
+              New Interests Added
+            </h4>
+            {submitSuccess.interestsAdded && submitSuccess.interestsAdded.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {submitSuccess.interestsAdded.map((interest) => (
+                  <span
+                    key={interest.id}
+                    className="rounded-2xl px-3 py-1 text-sm text-white"
+                    style={{ background: colors.lilac }}
+                  >
+                    {interest.name}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">No new interests were added</p>
+            )}
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: colors.paper }}>
+            <p className="text-sm">
+              <strong>Total Interests:</strong> {submitSuccess.totalInterests}
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              Your recommendations have been updated based on your answers
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setSubmitSuccess(null);
+              window.location.reload();
+            }}
+            className="rounded-2xl px-4 py-2 text-white hover:opacity-90 transition-opacity"
+            style={{ background: colors.plum }}
+          >
+            Retake Quiz
+          </button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card
+      title={quiz?.title || "Matchmaking Quiz"}
+      subtitle={quiz?.description || "Answer questions to personalize your recommendations"}
+      action={
+        quiz?.lastSubmittedAt && (
+          <span className="text-xs text-gray-500">
+            Last taken: {new Date(quiz.lastSubmittedAt).toLocaleDateString()}
+          </span>
+        )
+      }
+    >
+      <div className="space-y-4">
+        {quiz?.questions?.map((question, idx) => (
+          <div key={question.questionId} className="rounded-2xl p-4 space-y-3" style={{ background: colors.paper }}>
+            <div className="flex items-start gap-2">
+              <span
+                className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                style={{ background: colors.plum }}
+              >
+                {idx + 1}
+              </span>
+              <div className="flex-1">
+                <div className="font-medium">{question.prompt}</div>
+                {question.kind === "text" && (
+                  <textarea
+                    value={answers[question.questionId]?.freeText || ""}
+                    onChange={(e) => handleAnswerChange(question.questionId, "text", e.target.value)}
+                    placeholder="Type your answer here..."
+                    className="mt-2 w-full rounded-xl p-3 border-2 focus:outline-none focus:border-lilac transition-colors"
+                    style={{ borderColor: colors.mist }}
+                    rows={3}
+                  />
+                )}
+                {question.kind === "single" && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {question.options.map((option) => (
+                      <button
+                        key={option.optionId}
+                        onClick={() => handleAnswerChange(question.questionId, "single", option.optionId)}
+                        className={`rounded-2xl px-3 py-2 text-sm transition-colors ${
+                          answers[question.questionId]?.optionIds?.includes(option.optionId)
+                            ? "text-white"
+                            : "hover:bg-mist/80"
+                        }`}
+                        style={{
+                          background: answers[question.questionId]?.optionIds?.includes(option.optionId)
+                            ? colors.lilac
+                            : colors.mist,
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {question.kind === "multi" && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {question.options.map((option) => (
+                      <button
+                        key={option.optionId}
+                        onClick={() => handleAnswerChange(question.questionId, "multi", option.optionId)}
+                        className={`rounded-2xl px-3 py-2 text-sm transition-colors ${
+                          answers[question.questionId]?.optionIds?.includes(option.optionId)
+                            ? "text-white"
+                            : "hover:bg-mist/80"
+                        }`}
+                        style={{
+                          background: answers[question.questionId]?.optionIds?.includes(option.optionId)
+                            ? colors.lilac
+                            : colors.mist,
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          className="rounded-2xl px-4 py-2 text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+          style={{ background: colors.plum }}
+        >
+          {submitting ? "Submitting..." : quiz?.lastSubmittedAt ? "Update Answers" : "Submit Quiz"}
+        </button>
       </div>
     </Card>
   );
@@ -3485,39 +3769,31 @@ function StudentDashboardApp() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadDashboardRecommendations() {
-      try {
-        setRecommendationsLoading(true);
-        const payload = await fetchHomeRecommendations();
-        if (!active) return;
-        const rails = Array.isArray(payload?.rails) ? payload.rails.filter(Boolean) : [];
-        setRecommendationRails(rails);
-        setRecommendationsError(null);
-      } catch (error) {
-        if (!active) return;
-        setRecommendationRails([]);
-        setRecommendationsError(error);
-        if (error?.status && error.status !== 401) {
-          push({
-            title: "Couldn't load recommendations",
-            description: error?.message ?? "Please try again shortly.",
-            tone: "error",
-          });
-        }
-      } finally {
-        if (active) setRecommendationsLoading(false);
+  const loadDashboardRecommendations = useCallback(async () => {
+    try {
+      setRecommendationsLoading(true);
+      const payload = await fetchHomeRecommendations();
+      const rails = Array.isArray(payload?.rails) ? payload.rails.filter(Boolean) : [];
+      setRecommendationRails(rails);
+      setRecommendationsError(null);
+    } catch (error) {
+      setRecommendationRails([]);
+      setRecommendationsError(error);
+      if (error?.status && error.status !== 401) {
+        push({
+          title: "Couldn't load recommendations",
+          description: error?.message ?? "Please try again shortly.",
+          tone: "error",
+        });
       }
+    } finally {
+      setRecommendationsLoading(false);
     }
-
-    loadDashboardRecommendations();
-
-    return () => {
-      active = false;
-    };
   }, [push]);
+
+  useEffect(() => {
+    loadDashboardRecommendations();
+  }, [loadDashboardRecommendations]);
 
   useEffect(() => {
     let active = true;
@@ -3926,7 +4202,7 @@ function StudentDashboardApp() {
           onLeave={handleLeaveSociety}
         />
       )}
-      {page === "quiz" && <QuizPage />}
+      {page === "quiz" && <QuizPage onRefreshRecommendations={loadDashboardRecommendations} />}
       {page === "notifications" && <NotificationsPage />}
       {page === "events" && (
         <EventsPage
