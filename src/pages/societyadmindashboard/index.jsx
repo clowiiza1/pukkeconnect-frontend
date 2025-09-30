@@ -153,9 +153,11 @@ function Shell({ page, setPage, children }) {
     { key: "events", label: "Events", icon: <CalendarDays size={18} /> },
     { key: "posts", label: "Posts", icon: <FileText size={18} /> },
     { key: "requests", label: "Requests", icon: <ShieldCheck size={18} /> },
+    { key: "messages", label: "Messages", icon: <MessageCircle size={18} /> }, // Added Messages
     { key: "settings", label: "Settings", icon: <Settings size={18} /> },
     { key: "metrics", label: "Metrics", icon: <BarChart3 size={18} /> },
   ];
+
 
   return (
     <div
@@ -218,68 +220,68 @@ function Shell({ page, setPage, children }) {
 
      
       {/* Sidebar */}
-<aside className={`col-span-12 md:col-span-3 lg:col-span-2 ${open ? "block" : "hidden md:block"} md:ml-[-1rem]`}>
-  <div 
-    className="rounded-3xl p-3 sticky top-20 flex flex-col min-h-[85vh]"
-    style={{ 
-      background: "white", 
-      border: `1px solid ${colors.mist}`,
-      marginLeft: '-0.5rem'
-    }}
-  >
-    <nav className="space-y-1 flex-1">
-      {nav.map((item) => (
-        <button
-          key={item.key}
-          onClick={() => setPage(item.key)}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-left transition hover:bg-mist ${page === item.key ? "text-white" : "text-gray-800"}`}
-          style={{
-            background: page === item.key ? colors.lilac : "transparent",
-          }}
-        >
-          {/* Wrapped icon in a div with flex-shrink-0 to prevent shrinking */}
-          <div className="flex-shrink-0">
-            {item.icon}
+        <aside className={`col-span-12 md:col-span-3 lg:col-span-2 ${open ? "block" : "hidden md:block"} md:ml-[-1rem]`}>
+          <div 
+            className="rounded-3xl p-3 sticky top-20 flex flex-col min-h-[85vh]"
+            style={{ 
+              background: "white", 
+              border: `1px solid ${colors.mist}`,
+              marginLeft: '-0.5rem'
+            }}
+          >
+            <nav className="space-y-1 flex-1">
+              {nav.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setPage(item.key)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-left transition hover:bg-mist ${page === item.key ? "text-white" : "text-gray-800"}`}
+                  style={{
+                    background: page === item.key ? colors.lilac : "transparent",
+                  }}
+                >
+                  {/* Wrapped icon in a div with flex-shrink-0 to prevent shrinking */}
+                  <div className="flex-shrink-0">
+                    {item.icon}
+                  </div>
+                  {/* truncate to the span for text overflow handling */}
+                  <span className="text-sm font-medium truncate">{item.label}</span>
+                  {/* flex-shrink-0 to ChevronRight as well */}
+                  {page === item.key && <ChevronRight className="ml-auto flex-shrink-0" size={16} />}
+                </button>
+              ))}
+            </nav>
+
+            <div className="mt-4 p-3 rounded-2xl" style={{ background: colors.mist }}>
+              <div className="text-xs opacity-70 mb-1">Managing</div>
+              <div className="text-sm font-semibold">AI & Robotics Society</div>
+              <div className="text-xs opacity-70">Role: Admin</div>
+            </div>
+
+            {/* Logout Button - Positioned at the bottom */}
+            <div className="mt-auto pt-4">
+              <button
+                onClick={() => console.log("Logging out...")}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-left transition text-gray-800 hover:bg-mist"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 12H3m12-6l6 6-6 6"
+                  />
+                </svg>
+                <span className="text-sm font-medium">Logout</span>
+              </button>
+            </div>
           </div>
-          {/* truncate to the span for text overflow handling */}
-          <span className="text-sm font-medium truncate">{item.label}</span>
-          {/* flex-shrink-0 to ChevronRight as well */}
-          {page === item.key && <ChevronRight className="ml-auto flex-shrink-0" size={16} />}
-        </button>
-      ))}
-    </nav>
-
-    <div className="mt-4 p-3 rounded-2xl" style={{ background: colors.mist }}>
-      <div className="text-xs opacity-70 mb-1">Managing</div>
-      <div className="text-sm font-semibold">AI & Robotics Society</div>
-      <div className="text-xs opacity-70">Role: Admin</div>
-    </div>
-
-    {/* Logout Button - Positioned at the bottom */}
-    <div className="mt-auto pt-4">
-      <button
-        onClick={() => console.log("Logging out...")}
-        className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-left transition text-gray-800 hover:bg-mist"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5 flex-shrink-0"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15 12H3m12-6l6 6-6 6"
-          />
-        </svg>
-        <span className="text-sm font-medium">Logout</span>
-      </button>
-    </div>
-  </div>
-</aside>
+        </aside>
 
 
 
@@ -305,7 +307,7 @@ function Shell({ page, setPage, children }) {
   );
 }
 
-// Pages
+// Overiew Pages
 function OverviewPage() {
   return (
     <>
@@ -824,9 +826,6 @@ function MembersPage() {
   );
 }
 
-
-//====== Events Page =====//
-//====== Events Page =====//
 
 //====== Events Page =====//
 function EventsPage() {
@@ -1676,11 +1675,758 @@ function EventsPage() {
   );
 }
 
+
+
+//====== Posts Page ======//
 //====== Posts Page ======//
 function PostsPage() {
-  
-}
+  const [posts, setPosts] = useState([
+    {
+      id: 1,
+      title: "Welcome to Tech Society!",
+      content: "We're excited to announce our first meetup of the semester. Join us for an amazing session on web development and networking with fellow tech enthusiasts.",
+      image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80",
+      author: "Admin User",
+      createdAt: "2024-01-15T10:30:00Z",
+      likes: 24,
+      comments: [
+        {
+          id: 1,
+          studentName: "Sarah Chen",
+          studentAvatar: "👩‍💼",
+          content: "Excited to join! What time does the meetup start?",
+          createdAt: "2024-01-15T11:20:00Z",
+          likes: 3
+        },
+        {
+          id: 2,
+          studentName: "Mike Johnson",
+          studentAvatar: "👨‍💻",
+          content: "Great initiative! Looking forward to learning web development with everyone.",
+          createdAt: "2024-01-15T12:45:00Z",
+          likes: 5
+        },
+        {
+          id: 3,
+          studentName: "Emily Davis",
+          studentAvatar: "👩‍🎓",
+          content: "Will there be any prerequisites for the session?",
+          createdAt: "2024-01-15T14:30:00Z",
+          likes: 2
+        }
+      ],
+      views: 156,
+      status: "published",
+      type: "announcement"
+    },
+    {
+      id: 2,
+      title: "Upcoming Workshop: React Fundamentals",
+      content: "Learn React from scratch in our hands-on workshop this Friday. Bring your laptops and get ready to code!",
+      image: null,
+      author: "Admin User",
+      createdAt: "2024-01-12T14:20:00Z",
+      likes: 18,
+      comments: [
+        {
+          id: 1,
+          studentName: "Alex Kim",
+          studentAvatar: "👨‍🎨",
+          content: "Perfect timing! I've been wanting to learn React.",
+          createdAt: "2024-01-12T15:10:00Z",
+          likes: 4
+        },
+        {
+          id: 2,
+          studentName: "Priya Patel",
+          studentAvatar: "👩‍🔬",
+          content: "What should we install before the workshop?",
+          createdAt: "2024-01-12T16:45:00Z",
+          likes: 1
+        }
+      ],
+      views: 203,
+      status: "published",
+      type: "event"
+    },
+    {
+      id: 3,
+      title: "Member Spotlight: Sarah Chen",
+      content: "This month we're featuring Sarah Chen, who recently built an amazing machine learning project...",
+      image: "https://images.unsplash.com/photo-1494790108755-2616b612b786?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1887&q=80",
+      author: "Admin User",
+      createdAt: "2024-01-10T09:15:00Z",
+      likes: 32,
+      comments: [
+        {
+          id: 1,
+          studentName: "Sarah Chen",
+          studentAvatar: "👩‍💼",
+          content: "Thank you for featuring me! Happy to share my journey with the community.",
+          createdAt: "2024-01-10T10:05:00Z",
+          likes: 8
+        },
+        {
+          id: 2,
+          studentName: "David Lee",
+          studentAvatar: "👨‍💼",
+          content: "Inspiring work, Sarah! Could you share more about your project setup?",
+          createdAt: "2024-01-10T11:30:00Z",
+          likes: 3
+        },
+        {
+          id: 3,
+          studentName: "Maria Garcia",
+          studentAvatar: "👩‍🏫",
+          content: "This is amazing! How long did it take you to complete the project?",
+          createdAt: "2024-01-10T13:15:00Z",
+          likes: 2
+        }
+      ],
+      views: 189,
+      status: "published",
+      type: "spotlight"
+    }
+  ]);
 
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'edit', 'comments'
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Main Flow 1: Create Post Form State
+  const [postForm, setPostForm] = useState({
+    title: '',
+    content: '',
+    image: null,
+    type: 'announcement',
+    status: 'draft'
+  });
+
+  // Filtered posts based on search and filters
+  const filteredPosts = posts.filter(post => {
+    const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         post.content.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || post.status === filterStatus;
+    const matchesType = filterType === 'all' || post.type === filterType;
+    
+    return matchesSearch && matchesStatus && matchesType;
+  });
+
+  // Handle input changes and validation
+  const handleInputChange = (field, value) => {
+    setPostForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Content validation
+  const validateContent = () => {
+    const errors = [];
+    
+    if (!postForm.title.trim()) {
+      errors.push('Title is required');
+    }
+    
+    if (!postForm.content.trim()) {
+      errors.push('Content is required');
+    }
+    
+    if (postForm.title.length > 100) {
+      errors.push('Title must be less than 100 characters');
+    }
+    
+    if (postForm.content.length > 1000) {
+      errors.push('Content must be less than 1000 characters');
+    }
+    
+    // Check for inappropriate content (basic example)
+    const inappropriateWords = ['spam', 'inappropriate', 'badword'];
+    const content = postForm.title + ' ' + postForm.content;
+    if (inappropriateWords.some(word => content.toLowerCase().includes(word))) {
+      errors.push('Content contains inappropriate language');
+    }
+    
+    return errors;
+  };
+
+  // Save post
+  const handleSavePost = async (e) => {
+    e.preventDefault();
+    
+    const errors = validateContent();
+    if (errors.length > 0) {
+      alert(`Please fix the following errors:\n${errors.join('\n')}`);
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const newPost = {
+      id: selectedPost ? selectedPost.id : Date.now(),
+      title: postForm.title,
+      content: postForm.content,
+      image: postForm.image,
+      author: "Admin User",
+      createdAt: selectedPost ? selectedPost.createdAt : new Date().toISOString(),
+      likes: selectedPost ? selectedPost.likes : 0,
+      comments: selectedPost ? selectedPost.comments : [],
+      views: selectedPost ? selectedPost.views : 0,
+      status: postForm.status,
+      type: postForm.type
+    };
+    
+    if (selectedPost) {
+      // Update existing post
+      setPosts(posts.map(post => post.id === selectedPost.id ? newPost : post));
+    } else {
+      // Add new post
+      setPosts([newPost, ...posts]);
+    }
+    
+    // Reset form and return to list view
+    setPostForm({
+      title: '',
+      content: '',
+      image: null,
+      type: 'announcement',
+      status: 'draft'
+    });
+    setSelectedPost(null);
+    setViewMode('list');
+    setIsSubmitting(false);
+    
+    console.log(`Post ${selectedPost ? 'updated' : 'created'} - Audit log recorded`);
+  };
+
+  // Edit post
+  const handleEditPost = (post) => {
+    setSelectedPost(post);
+    setPostForm({
+      title: post.title,
+      content: post.content,
+      image: post.image,
+      type: post.type,
+      status: post.status
+    });
+    setViewMode('edit');
+  };
+
+  // Delete post
+  const handleDeletePost = (postId) => {
+    if (window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+      setPosts(posts.filter(post => post.id !== postId));
+      console.log(`Post ${postId} deleted - Audit log recorded`);
+    }
+  };
+
+  // View comments
+  const handleViewComments = (post) => {
+    setSelectedPost(post);
+    setViewMode('comments');
+  };
+
+  // Delete comment
+  const handleDeleteComment = (postId, commentId) => {
+    if (window.confirm('Are you sure you want to delete this comment?')) {
+      setPosts(posts.map(post => 
+        post.id === postId 
+          ? {
+              ...post,
+              comments: post.comments.filter(comment => comment.id !== commentId)
+            }
+          : post
+      ));
+      console.log(`Comment ${commentId} deleted from post ${postId} - Audit log recorded`);
+    }
+  };
+
+  // Handle image upload
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPostForm(prev => ({
+          ...prev,
+          image: e.target.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Format relative time for comments
+  const formatRelativeTime = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`;
+    return formatDate(dateString);
+  };
+
+  // Comments View
+  if (viewMode === 'comments' && selectedPost) {
+    return (
+      <Card
+        title="Post Comments"
+        subtitle={`Managing comments for: ${selectedPost.title}`}
+      >
+        <div className="space-y-6">
+          {/* Back Button */}
+          <button
+            onClick={() => setViewMode('list')}
+            className="flex items-center gap-2 text-mediumpur hover:text-mediumpur/80 transition-colors mb-4"
+          >
+            <ArrowLeft size={16} />
+            Back to Posts
+          </button>
+
+          {/* Post Summary */}
+          <div className="bg-gray-50 rounded-2xl p-4">
+            <h3 className="font-semibold text-gray-900 mb-2">{selectedPost.title}</h3>
+            <p className="text-sm text-gray-600 line-clamp-2">{selectedPost.content}</p>
+            <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+              <span>{selectedPost.likes} likes</span>
+              <span>{selectedPost.comments.length} comments</span>
+              <span>{selectedPost.views} views</span>
+            </div>
+          </div>
+
+          {/* Comments Section */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Comments ({selectedPost.comments.length})
+            </h3>
+            
+            {selectedPost.comments.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <MessageCircle size={32} className="mx-auto mb-2 opacity-50" />
+                <p>No comments yet</p>
+                <p className="text-sm">Students will be able to comment once the post is published</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {selectedPost.comments.map((comment) => (
+                  <div key={comment.id} className="bg-white border border-gray-200 rounded-2xl p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="text-2xl">{comment.studentAvatar}</div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{comment.studentName}</div>
+                          <div className="text-xs text-gray-500">
+                            {formatRelativeTime(comment.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteComment(selectedPost.id, comment.id)}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete comment"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-3">{comment.content}</p>
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Heart size={12} />
+                        {comment.likes} likes
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Create/Edit Post View
+  if (viewMode === 'create' || viewMode === 'edit') {
+    return (
+      <Card
+        title={viewMode === 'create' ? "Create New Post" : "Edit Post"}
+        subtitle={viewMode === 'create' ? "Share updates and announcements with society members" : `Editing: ${selectedPost?.title}`}
+      >
+        <div className="space-y-6">
+          {/* Back Button */}
+          <button
+            onClick={() => {
+              setViewMode('list');
+              setSelectedPost(null);
+              setPostForm({
+                title: '',
+                content: '',
+                image: null,
+                type: 'announcement',
+                status: 'draft'
+              });
+            }}
+            className="flex items-center gap-2 text-mediumpur hover:text-mediumpur/80 transition-colors mb-4"
+          >
+            <ArrowLeft size={16} />
+            Back to Posts
+          </button>
+
+          <form onSubmit={handleSavePost} className="space-y-6">
+            {/* Post Type and Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Post Type</label>
+                <select
+                  value={postForm.type}
+                  onChange={(e) => handleInputChange('type', e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-mediumpur focus:border-mediumpur text-sm"
+                >
+                  <option value="announcement">Announcement</option>
+                  <option value="event">Event</option>
+                  <option value="spotlight">Member Spotlight</option>
+                  <option value="news">News</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                  value={postForm.status}
+                  onChange={(e) => handleInputChange('status', e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-mediumpur focus:border-mediumpur text-sm"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Title Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+              <input
+                type="text"
+                value={postForm.title}
+                onChange={(e) => handleInputChange('title', e.target.value)}
+                placeholder="Enter post title..."
+                className="w-full border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-mediumpur focus:border-mediumpur placeholder:text-sm text-sm"
+                maxLength={100}
+              />
+              <div className="text-xs text-gray-500 mt-1 text-right">
+                {postForm.title.length}/100 characters
+              </div>
+            </div>
+
+            {/* Content Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
+              <textarea
+                value={postForm.content}
+                onChange={(e) => handleInputChange('content', e.target.value)}
+                placeholder="Write your post content here..."
+                rows={8}
+                className="w-full border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-mediumpur focus:border-mediumpur placeholder:text-sm text-sm resize-none"
+                maxLength={1000}
+              />
+              <div className="text-xs text-gray-500 mt-1 text-right">
+                {postForm.content.length}/1000 characters
+              </div>
+            </div>
+
+            {/* Image Upload */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Featured Image</label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                  id="image-upload"
+                />
+                <label
+                  htmlFor="image-upload"
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer text-sm"
+                >
+                  <ImagePlus size={16} />
+                  {postForm.image ? 'Change Image' : 'Upload Image'}
+                </label>
+                {postForm.image && (
+                  <div className="relative">
+                    <img
+                      src={postForm.image}
+                      alt="Preview"
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('image', null)}
+                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('list');
+                  setSelectedPost(null);
+                  setPostForm({
+                    title: '',
+                    content: '',
+                    image: null,
+                    type: 'announcement',
+                    status: 'draft'
+                  });
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-2 bg-mediumpur text-white rounded-lg hover:bg-mediumpur/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {isSubmitting ? 'Saving...' : (viewMode === 'create' ? 'Create Post' : 'Update Post')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </Card>
+    );
+  }
+
+  // Main Posts List View
+  return (
+    <Card
+      title="Posts"
+      subtitle="Create and manage society posts, announcements, and updates"
+    >
+      {/* Search and Actions Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        {/* Search Bar */}
+        <div className="relative flex-1 max-w-md">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+            <Search className="w-4 h-4" />
+          </span>
+          <input
+            type="text"
+            placeholder="Search posts by title or content..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full border border-gray-300 rounded-xl pl-9 pr-3 py-2 outline-none placeholder:text-sm focus:ring-1 focus:ring-mediumpur text-sm"
+          />
+        </div>
+        
+        {/* Action Buttons */}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setViewMode('create')}
+            className="flex items-center gap-2 px-4 py-2 bg-mediumpur text-white rounded-lg hover:bg-mediumpur/90 transition-colors text-sm"
+          >
+            <Plus size={16} />
+            Create Post
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-mediumpur focus:border-mediumpur text-sm"
+          >
+            <option value="all">All Status</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-mediumpur focus:border-mediumpur text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="announcement">Announcement</option>
+            <option value="event">Event</option>
+            <option value="spotlight">Spotlight</option>
+            <option value="news">News</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Results Count */}
+      <div className="mb-4 text-sm text-gray-600">
+        Showing {filteredPosts.length} of {posts.length} posts
+      </div>
+
+      {/* Empty State */}
+      {posts.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-2xl">
+          <div className="text-lg font-medium text-gray-900 mb-2">No posts yet</div>
+          <p className="text-gray-600 mb-4">Create your first post to share updates with society members</p>
+          <button
+            onClick={() => setViewMode('create')}
+            className="bg-mediumpur text-white px-4 py-2 rounded-lg hover:bg-mediumpur/90 transition-colors text-sm"
+          >
+            Create First Post
+          </button>
+        </div>
+      ) : (
+        /* Posts Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredPosts.map((post) => (
+            <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+              {/* Post Image */}
+              {post.image && (
+                <img
+                  src={post.image}
+                  alt={post.title}
+                  className="w-full h-48 object-cover"
+                />
+              )}
+              
+              {/* Post Content */}
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                    post.type === 'announcement' ? 'bg-blue-100 text-blue-800' :
+                    post.type === 'event' ? 'bg-green-100 text-green-800' :
+                    post.type === 'spotlight' ? 'bg-purple-100 text-purple-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {post.type}
+                  </span>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    post.status === 'published' ? 'bg-green-100 text-green-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {post.status}
+                  </span>
+                </div>
+                
+                <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{post.title}</h3>
+                <p className="text-gray-600 text-sm mb-4 line-clamp-3">{post.content}</p>
+                
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                  <span>{formatDate(post.createdAt)}</span>
+                  <span>by {post.author}</span>
+                </div>
+                
+                {/* Engagement Metrics */}
+                <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 pt-3">
+                  <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1">
+                      <Heart size={12} />
+                      {post.likes}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MessageCircle size={12} />
+                      {post.comments.length}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Eye size={12} />
+                      {post.views}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => handleEditPost(post)}
+                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-xs"
+                  >
+                    <Edit3 size={12} />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleViewComments(post)}
+                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-xs"
+                  >
+                    <MessageCircle size={12} />
+                    Comments
+                  </button>
+                  <button
+                    onClick={() => handleDeletePost(post.id)}
+                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-xs"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                </div>
+
+                {/* Recent Comments Preview */}
+                {post.comments.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="text-xs font-medium text-gray-700 mb-2">Recent Comments:</div>
+                    <div className="space-y-2">
+                      {post.comments.slice(0, 2).map((comment) => (
+                        <div key={comment.id} className="flex items-start gap-2 text-xs">
+                          <div className="text-lg">{comment.studentAvatar}</div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{comment.studentName}</div>
+                            <div className="text-gray-600 line-clamp-1">{comment.content}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {post.comments.length > 2 && (
+                        <div className="text-xs text-gray-500 text-center">
+                          +{post.comments.length - 2} more comments
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Empty Search Results */}
+      {filteredPosts.length === 0 && posts.length > 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <div className="text-sm font-medium mb-2">No posts found</div>
+          <p className="text-xs">Try adjusting your search terms or filters</p>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 // Mock data for join requests
 const mockRequests = [
@@ -2172,6 +2918,8 @@ function RequestsPage() {
   );
 }
 
+
+//======= Settings Page ======//
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState("Profile");
   const [societyLogo, setSocietyLogo] = useState(null);
@@ -2751,32 +3499,741 @@ function SettingsPage() {
   );
 }
 
+//====== Messages Page ======//
+// Notification Sender Component
+const NotificationSender = () => {
+  const [members] = useState([
+    { id: 1, name: "John Doe", email: "john@example.com", role: "Member", hasRSVP: true, status: "active" },
+    { id: 2, name: "Jane Smith", email: "jane@example.com", role: "Admin", hasRSVP: false, status: "active" },
+    { id: 3, name: "Mike Johnson", email: "mike@example.com", role: "Member", hasRSVP: true, status: "inactive" },
+    { id: 4, name: "Sarah Wilson", email: "sarah@example.com", role: "Volunteer", hasRSVP: true, status: "active" },
+  ]);
 
+  const [formData, setFormData] = useState({
+    audience: "all",
+    subject: "",
+    message: "",
+    includeEmail: true,
+    includeInApp: true
+  });
 
-function MetricsPage() {
+  const [deliveryStatus, setDeliveryStatus] = useState({
+    sent: 0,
+    failed: 0,
+    pending: 0,
+    logs: []
+  });
+
+  const [isSending, setIsSending] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  const getEligibleRecipients = () => {
+    let filtered = members.filter(member => member.status === "active");
+
+    if (formData.audience === "rsvp") {
+      filtered = filtered.filter(member => member.hasRSVP);
+    }
+
+    return filtered;
+  };
+
+  const eligibleRecipients = getEligibleRecipients();
+
+  const handleAudienceChange = (value) => {
+    setFormData(prev => ({
+      ...prev,
+      audience: value
+    }));
+  };
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const simulateNotificationSend = async () => {
+    setIsSending(true);
+    const logs = [];
+    let sent = 0;
+    let failed = 0;
+
+    for (const recipient of eligibleRecipients) {
+      const success = Math.random() > 0.1;
+      
+      if (success) {
+        sent++;
+        logs.push({
+          id: Date.now() + recipient.id,
+          recipient: recipient.name,
+          email: recipient.email,
+          status: "sent",
+          timestamp: new Date().toISOString(),
+          method: formData.includeEmail ? "email" : "in-app"
+        });
+      } else {
+        failed++;
+        logs.push({
+          id: Date.now() + recipient.id,
+          recipient: recipient.name,
+          email: recipient.email,
+          status: "failed",
+          timestamp: new Date().toISOString(),
+          method: formData.includeEmail ? "email" : "in-app",
+          error: "Delivery failed"
+        });
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    setDeliveryStatus({
+      sent,
+      failed,
+      pending: 0,
+      logs
+    });
+
+    setIsSending(false);
+    setShowSuccess(true);
+    
+    setTimeout(() => setShowSuccess(false), 5000);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    if (eligibleRecipients.length === 0) {
+      alert("No eligible recipients found. Please adjust your audience selection.");
+      return;
+    }
+
+    if (!formData.subject.trim() || !formData.message.trim()) {
+      alert("Please provide both subject and message.");
+      return;
+    }
+
+    simulateNotificationSend();
+  };
+
+  const resetForm = () => {
+    setFormData({
+      audience: "all",
+      subject: "",
+      message: "",
+      includeEmail: true,
+      includeInApp: true
+    });
+    setDeliveryStatus({
+      sent: 0,
+      failed: 0,
+      pending: 0,
+      logs: []
+    });
+  };
+
   return (
-    <Card title="Participation Metrics" subtitle="Engagement across members and content">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-3">
-          {mockParticipation.map((m) => (
-            <div key={m.label} className="p-3 rounded-2xl" style={{ background: colors.paper }}>
-              <div className="text-sm mb-2">{m.label} <span className="opacity-60">— {m.value}%</span></div>
-              <div className="h-2 rounded-full" style={{ background: colors.mist }}>
-                <div className="h-2 rounded-full" style={{ width: `${m.value}%`, background: colors.plum }} />
+    <Card
+      title="Send Messages"
+      subtitle="Communicate with society members via email and in-app notifications"
+    >
+      {/* Success Message */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-6 p-4 bg-green-50 border border-green-200 rounded-2xl flex items-center gap-3"
+          >
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <div>
+              <p className="font-medium text-green-800 text-sm">Messages sent successfully!</p>
+              <p className="text-xs text-green-600">
+                {deliveryStatus.sent} delivered, {deliveryStatus.failed} failed
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Form */}
+        <div className="lg:col-span-2">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Audience Selection */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Audience</h3>
+              
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-gray-300 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="audience"
+                    value="all"
+                    checked={formData.audience === "all"}
+                    onChange={(e) => handleAudienceChange(e.target.value)}
+                    className="text-mediumpur focus:ring-mediumpur"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">All Members</p>
+                    <p className="text-gray-600 text-xs">Send to all active society members</p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-gray-300 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="audience"
+                    value="rsvp"
+                    checked={formData.audience === "rsvp"}
+                    onChange={(e) => handleAudienceChange(e.target.value)}
+                    className="text-mediumpur focus:ring-mediumpur"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">RSVP'd Attendees</p>
+                    <p className="text-gray-600 text-xs">Only members who RSVP'd to events</p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Recipient Count */}
+              <div className="mt-4 p-3 bg-gray-50 rounded-xl">
+                <p className="text-sm font-medium text-gray-700">
+                  {eligibleRecipients.length} eligible recipients
+                </p>
+                {eligibleRecipients.length === 0 && (
+                  <p className="text-xs text-red-600 mt-1">No recipients found with current selection</p>
+                )}
               </div>
             </div>
-          ))}
+
+            {/* Message Composition */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Compose Message</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
+                  <input
+                    type="text"
+                    value={formData.subject}
+                    onChange={(e) => handleInputChange("subject", e.target.value)}
+                    placeholder="Enter message subject..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-mediumpur focus:border-mediumpur outline-none placeholder:text-sm text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
+                  <textarea
+                    value={formData.message}
+                    onChange={(e) => handleInputChange("message", e.target.value)}
+                    placeholder="Type your message here..."
+                    rows={6}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-mediumpur focus:border-mediumpur outline-none placeholder:text-sm text-sm resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Delivery Methods */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Delivery Methods</h3>
+              
+              <div className="space-y-3">
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={formData.includeEmail}
+                    onChange={(e) => handleInputChange("includeEmail", e.target.checked)}
+                    className="rounded border-gray-300 text-mediumpur focus:ring-mediumpur"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">Email</p>
+                    <p className="text-gray-600 text-xs">Send as email notification</p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={formData.includeInApp}
+                    onChange={(e) => handleInputChange("includeInApp", e.target.checked)}
+                    className="rounded border-gray-300 text-mediumpur focus:ring-mediumpur"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">In-App Notification</p>
+                    <p className="text-gray-600 text-xs">Show notification within the app</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPreview(true)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+              >
+                Preview
+              </button>
+              <button
+                type="submit"
+                disabled={isSending || eligibleRecipients.length === 0}
+                className="flex-1 px-4 py-2 bg-mediumpur text-white rounded-lg hover:bg-mediumpur/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              >
+                {isSending ? "Sending..." : "Send Messages"}
+              </button>
+            </div>
+          </form>
         </div>
-        <div className="p-4 rounded-2xl" style={{ background: colors.paper }}>
-          <div className="font-medium mb-2">Top active members</div>
-          <ul className="text-sm space-y-2">
-            <li>• Ayesha — 12 comments, 3 posts</li>
-            <li>• Liam — 9 comments, 1 post</li>
-            <li>• Zinhle — 7 comments, 2 posts</li>
-            <li>• Carlos — 5 comments, 1 post</li>
-          </ul>
+
+        {/* Sidebar - Stats & Actions */}
+        <div className="space-y-6">
+          {/* Stats Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Delivery Summary</h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Total Recipients</span>
+                <span className="font-medium text-sm">{eligibleRecipients.length}</span>
+              </div>
+              
+              {deliveryStatus.sent > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-green-600">Successfully Sent</span>
+                  <span className="font-medium text-green-600 text-sm">{deliveryStatus.sent}</span>
+                </div>
+              )}
+              
+              {deliveryStatus.failed > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-red-600">Failed</span>
+                  <span className="font-medium text-red-600 text-sm">{deliveryStatus.failed}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+            
+            <div className="space-y-2">
+              <button
+                onClick={resetForm}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                Reset Form
+              </button>
+              <button
+                onClick={() => setFormData(prev => ({ ...prev, audience: "rsvp" }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                Target RSVP'd Members
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      <AnimatePresence>
+        {showPreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => setShowPreview(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Message Preview</h3>
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">Subject:</p>
+                  <p className="text-gray-900 text-sm">{formData.subject || "(No subject)"}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">Message:</p>
+                  <p className="text-gray-900 text-sm whitespace-pre-wrap">{formData.message || "(No message)"}</p>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    This will be sent to {eligibleRecipients.length} recipients via:
+                  </p>
+                  <div className="flex gap-4 mt-2">
+                    {formData.includeEmail && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                        Email
+                      </span>
+                    )}
+                    {formData.includeInApp && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                        In-App
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Card>
+  );
+};
+
+
+//====== Metrics Page =====//
+function MetricsPage() {
+  const [timeRange, setTimeRange] = useState('month'); // 'week', 'month', 'quarter', 'year'
+  const [activityType, setActivityType] = useState('all'); // 'all', 'events', 'posts', 'members'
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasData, setHasData] = useState(true);
+
+  // Mock data - in real app this would come from API
+  const [metricsData, setMetricsData] = useState({
+    eventAttendance: [
+      { month: 'Jan', attendees: 45, rsvp: 52 },
+      { month: 'Feb', attendees: 62, rsvp: 68 },
+      { month: 'Mar', attendees: 38, rsvp: 45 },
+      { month: 'Apr', attendees: 71, rsvp: 75 },
+      { month: 'May', attendees: 55, rsvp: 60 },
+      { month: 'Jun', attendees: 68, rsvp: 72 },
+    ],
+    membershipGrowth: [
+      { month: 'Jan', members: 120, newMembers: 15 },
+      { month: 'Feb', members: 135, newMembers: 12 },
+      { month: 'Mar', members: 142, newMembers: 7 },
+      { month: 'Apr', members: 156, newMembers: 14 },
+      { month: 'May', members: 168, newMembers: 12 },
+      { month: 'Jun', members: 175, newMembers: 7 },
+    ],
+    postEngagement: [
+      { month: 'Jan', posts: 8, likes: 45, comments: 12 },
+      { month: 'Feb', posts: 12, likes: 78, comments: 23 },
+      { month: 'Mar', posts: 6, likes: 34, comments: 8 },
+      { month: 'Apr', posts: 15, likes: 92, comments: 31 },
+      { month: 'May', posts: 10, likes: 67, comments: 18 },
+      { month: 'Jun', posts: 13, likes: 85, comments: 27 },
+    ],
+    topActivities: [
+      { name: "Tech Workshop", type: "event", participants: 68, engagement: 92 },
+      { name: "Annual Meetup", type: "event", participants: 75, engagement: 88 },
+      { name: "Member Spotlight", type: "post", participants: 156, engagement: 85 },
+      { name: "Volunteer Drive", type: "event", participants: 42, engagement: 78 },
+      { name: "Study Group", type: "post", participants: 89, engagement: 76 },
+    ]
+  });
+
+  // Main Flow 1 & 2: Load metrics data on component mount
+  useEffect(() => {
+    loadMetricsData();
+  }, [timeRange, activityType]);
+
+  const loadMetricsData = async () => {
+    setIsLoading(true);
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // In real app, this would fetch filtered data from backend
+    // For demo, we're using static data but would filter based on timeRange and activityType
+    
+    // Alternative Flow 2a: Check if data exists
+    const dataExists = metricsData.eventAttendance.length > 0;
+    setHasData(dataExists);
+    
+    setIsLoading(false);
+  };
+
+  // Calculate summary statistics
+  const summaryStats = {
+    totalMembers: metricsData.membershipGrowth[metricsData.membershipGrowth.length - 1]?.members || 0,
+    avgAttendance: Math.round(metricsData.eventAttendance.reduce((sum, item) => sum + item.attendees, 0) / metricsData.eventAttendance.length),
+    totalPosts: metricsData.postEngagement.reduce((sum, item) => sum + item.posts, 0),
+    engagementRate: Math.round((metricsData.postEngagement.reduce((sum, item) => sum + item.likes + item.comments, 0) / metricsData.postEngagement.reduce((sum, item) => sum + item.posts, 0)) * 10) / 10
+  };
+
+  // Main Flow 3: Filter handlers
+  const handleTimeRangeChange = (range) => {
+    setTimeRange(range);
+  };
+
+  const handleActivityTypeChange = (type) => {
+    setActivityType(type);
+  };
+
+  // Main Flow 4: Report generation helpers
+  const generateAttendanceChart = () => (
+    <div className="space-y-3">
+      {metricsData.eventAttendance.map((item, index) => (
+        <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
+          <span className="text-sm font-medium text-gray-700 w-20">{item.month}</span>
+          <div className="flex-1 mx-4">
+            <div className="flex items-center text-xs text-gray-500 mb-1">
+              <span>Attendance: {item.attendees}/{item.rsvp} ({Math.round((item.attendees / item.rsvp) * 100)}%)</span>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full">
+              <div 
+                className="h-2 bg-mediumpur rounded-full" 
+                style={{ width: `${(item.attendees / item.rsvp) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const generateMembershipChart = () => (
+    <div className="space-y-3">
+      {metricsData.membershipGrowth.map((item, index) => (
+        <div key={index} className="p-3 rounded-xl bg-gray-50">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium text-gray-700">{item.month}</span>
+            <span className="text-sm text-green-600">+{item.newMembers} new</span>
+          </div>
+          <div className="text-lg font-bold text-gray-900">{item.members} members</div>
+          <div className="h-2 bg-gray-200 rounded-full mt-2">
+            <div 
+              className="h-2 bg-green-500 rounded-full" 
+              style={{ width: `${(item.members / 200) * 100}%` }} // Assuming max 200 for scale
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const generateEngagementTable = () => (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Month</th>
+            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Posts</th>
+            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Likes</th>
+            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Comments</th>
+            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Engagement Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {metricsData.postEngagement.map((item, index) => (
+            <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+              <td className="py-3 px-4 text-sm font-medium text-gray-900">{item.month}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">{item.posts}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">{item.likes}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">{item.comments}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">
+                {Math.round(((item.likes + item.comments) / item.posts) * 10) / 10} per post
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const generateTopActivities = () => (
+    <div className="space-y-3">
+      {metricsData.topActivities.map((activity, index) => (
+        <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              activity.type === 'event' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
+            }`}>
+              {activity.type === 'event' ? '📅' : '📝'}
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-900">{activity.name}</div>
+              <div className="text-xs text-gray-500 capitalize">{activity.type}</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-sm font-semibold text-gray-900">{activity.participants}</div>
+            <div className="text-xs text-gray-500">{activity.engagement}% engaged</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Alternative Flow 2a: No data available
+  if (!hasData && !isLoading) {
+    return (
+      <Card title="Participation Metrics" subtitle="Engagement across members and content">
+        <div className="text-center py-12">
+          <div className="text-lg font-medium text-gray-900 mb-2">No activity recorded</div>
+          <p className="text-gray-600 mb-6">There's no participation data available for the selected filters.</p>
+          <div className="flex gap-3 justify-center">
+            <button 
+              onClick={() => {
+                setTimeRange('all');
+                setActivityType('all');
+                loadMetricsData();
+              }}
+              className="bg-mediumpur text-white px-4 py-2 rounded-lg hover:bg-mediumpur/90 transition-colors text-sm"
+            >
+              View All Data
+            </button>
+            <button className="border border-mediumpur text-mediumpur px-4 py-2 rounded-lg hover:bg-mediumpur/10 transition-colors text-sm">
+              Set Up Tracking
+            </button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card 
+      title="Participation Metrics" 
+      subtitle="Track engagement across members and content to support decision-making"
+    >
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-mediumpur mx-auto"></div>
+          <p className="text-gray-600 mt-2">Loading metrics data...</p>
+        </div>
+      )}
+
+      {/* Main Flow 3: Filters */}
+      {!isLoading && hasData && (
+        <>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div className="flex flex-wrap gap-2">
+              {/* Time Range Filter */}
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                {['week', 'month', 'quarter', 'year'].map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => handleTimeRangeChange(range)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
+                      timeRange === range
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
+
+              {/* Activity Type Filter */}
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                {['all', 'events', 'posts', 'members'].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => handleActivityTypeChange(type)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
+                      activityType === type
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-mediumpur rounded-full"></div>
+                <span>Events</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>Members</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>Posts</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="text-center p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+              <div className="text-2xl font-bold text-gray-900">{summaryStats.totalMembers}</div>
+              <div className="text-xs text-gray-600">Total Members</div>
+            </div>
+            <div className="text-center p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+              <div className="text-2xl font-bold text-gray-900">{summaryStats.avgAttendance}</div>
+              <div className="text-xs text-gray-600">Avg. Attendance</div>
+            </div>
+            <div className="text-center p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+              <div className="text-2xl font-bold text-gray-900">{summaryStats.totalPosts}</div>
+              <div className="text-xs text-gray-600">Total Posts</div>
+            </div>
+            <div className="text-center p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+              <div className="text-2xl font-bold text-gray-900">{summaryStats.engagementRate}</div>
+              <div className="text-xs text-gray-600">Engagement/Post</div>
+            </div>
+          </div>
+
+          {/* Main Flow 4: Reports as Charts/Tables */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Event Attendance Chart */}
+            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Event Attendance</h3>
+              {generateAttendanceChart()}
+            </div>
+
+            {/* Membership Growth Chart */}
+            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Membership Growth</h3>
+              {generateMembershipChart()}
+            </div>
+
+            {/* Post Engagement Table */}
+            <div className="lg:col-span-2 p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Post Engagement</h3>
+              {generateEngagementTable()}
+            </div>
+
+            {/* Top Activities */}
+            <div className="lg:col-span-2 p-4 rounded-2xl bg-white border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Performing Activities</h3>
+              {generateTopActivities()}
+            </div>
+          </div>
+
+          {/* Export Action */}
+          <div className="mt-6 flex justify-end">
+            <button className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+              <Download size={16} />
+              Export Report
+            </button>
+          </div>
+        </>
+      )}
     </Card>
   );
 }
@@ -2791,6 +4248,7 @@ export default function SocietyAdminDashboard() {
       {page === "events" && <EventsPage />}
       {page === "posts" && <PostsPage />}
       {page === "requests" && <RequestsPage />}
+       {page === "messages" && <NotificationSender />}
       {page === "settings" && <SettingsPage />}
       {page === "metrics" && <MetricsPage />}
     </Shell>
