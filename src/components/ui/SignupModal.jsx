@@ -1,7 +1,10 @@
 import { Dialog } from "@headlessui/react";
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
+import { normalizeRole, roleToDashboardPath } from "@/context/authUtils";
 import { useNavigate } from "react-router-dom";
+import AuthAPIs from "@/services/AuthAPIs.jsx";
 
 export default function SignupModal({ open, onClose, goLogin }) {
   const { login } = useAuth();
@@ -53,12 +56,13 @@ export default function SignupModal({ open, onClose, goLogin }) {
   };
 
   const validatePassword = (value) => {
+    const specialCharRegex = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/;
     const strength = {
       hasMinLength: value.length >= 8,
       hasUpperCase: /[A-Z]/.test(value),
       hasLowerCase: /[a-z]/.test(value),
       hasNumber: /[0-9]/.test(value),
-      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)
+      hasSpecialChar: specialCharRegex.test(value)
     };
     setPasswordStrength(strength);
     
@@ -109,7 +113,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
     onClose?.();
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
 
     // Validate all fields
@@ -134,7 +138,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       return;
     }
 
-    const phoneDigits = phoneNumber.replace(/\D/g, '');
+    const phoneDigits = phoneNumber.replace(/\\D/g, '');
     if (phoneDigits.length !== 10) {
       setSignupStatus("error");
       setError("Phone number must be exactly 10 digits.");
@@ -170,25 +174,88 @@ export default function SignupModal({ open, onClose, goLogin }) {
       return;
     }
 
-    // Simulate API call delay
+    try {
+      await AuthAPIs.register({
+        firstName: name.trim(),
+        lastName: surname.trim(),
+        universityNumber: studentNumber.trim(),
+        phoneNumber: phoneDigits,
+        campus,
+        major: major.trim(),
+        password,
+      });
+    } catch (err) {
+      const message = err?.message || err?.data?.message || "Could not complete signup.";
+      setSignupStatus("error");
+      setError(message);
+      setShowStatus(true);
+      return;
+    }
+
     setSignupStatus("success");
     setShowStatus(true);
 
-    setTimeout(() => {
-      // TODO: Replace with actual API call
-      login({ 
-        id: Date.now(), 
-        name: `${name} ${surname}`, 
-        studentNumber,
-        email,
-        phoneNumber,
-        campus,
-        major,
-        role: "student" 
-      });
-      navigate("/", { replace: true });
-      handleClose();
-    }, 3000);
+    try {
+      const loginResp = await AuthAPIs.login({ universityNumber: studentNumber.trim(), password });
+
+      const candidateUser =
+        loginResp?.user ??
+        loginResp?.data?.user ??
+        loginResp;
+
+      const tokenValue =
+        loginResp?.token ??
+        loginResp?.data?.token ??
+        candidateUser?.token;
+
+      const roleCandidates = [
+        candidateUser?.role,
+        candidateUser?.userRole,
+        candidateUser?.roleName,
+        loginResp?.role,
+        loginResp?.data?.role,
+      ];
+      const rawRole = roleCandidates.find((value) => value != null && value !== "");
+      const resolvedRole = normalizeRole(rawRole);
+      const userForContext =
+        resolvedRole && candidateUser
+          ? { ...candidateUser, role: resolvedRole }
+          : candidateUser;
+
+      if (userForContext) {
+        try {
+          flushSync(() => {
+            login(userForContext, tokenValue);
+          });
+        } catch {
+          try {
+            login(userForContext, tokenValue);
+          } catch {
+            try { login(userForContext); } catch { /* ignore */ }
+          }
+        }
+      }
+
+      const defaultDestination =
+        resolvedRole === "student"
+          ? "/"
+          : roleToDashboardPath(resolvedRole);
+      const destination =
+        userForContext?.redirect ??
+        loginResp?.redirect ??
+        defaultDestination ??
+        "/";
+
+      setTimeout(() => {
+        navigate(destination, { replace: true });
+        handleClose();
+      }, 2000);
+    } catch (err) {
+      const message = err?.message || err?.data?.message || "Signup succeeded but automatic login failed. Please sign in.";
+      setSignupStatus("error");
+      setError(message);
+      setShowStatus(true);
+    }
   };
 
   // Enhanced input handlers with validation

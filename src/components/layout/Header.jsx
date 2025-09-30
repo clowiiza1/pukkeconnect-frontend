@@ -31,14 +31,11 @@ export default function Header() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, role, logout } = useAuth();
+  const { isAuthenticated, dashboardPath, logout } = useAuth();
 
   const goAuth = (kind) => navigate({ pathname: "/", search: `?auth=${kind}` });
 
-  const dashboardHref =
-    role === "admin" ? "/admin" :
-    role === "society-admin" ? "/society-admin" :
-    "/student";
+  const dashboardHref = dashboardPath || "/";
 
   useEffect(() => {
   setOpen(false);
