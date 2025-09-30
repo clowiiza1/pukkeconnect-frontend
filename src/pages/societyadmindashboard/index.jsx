@@ -1,11 +1,11 @@
-import React, { useState,useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 //=====MOCK IMAGES FOR MEMBERS ======//
 import photo1 from "@/assets/photo1.jpg";
 import photo2 from "@/assets/photo2.jpg";
 import photo3 from "@/assets/photo3.jpg";
 import aws from "@/assets/aws.jpeg";
-
 import {
   LayoutDashboard,
   Users,
@@ -162,7 +162,56 @@ function Shell({ page, setPage, children }) {
       className="min-h-screen font-sans"
       style={{ background: `linear-gradient(to bottom, ${colors.plum} 0%, white 100%)` }}
     >
-      
+      {/* Topbar */}
+      <div
+        className="sticky top-0 z-40 bg-white"
+        style={{
+          borderBottom: `1px solid ${colors.mist}`,
+        }}
+      >
+        <div className="mx-auto max-w-7xl py-3 flex items-center gap-3 px-4 md:px-6 lg:px-8">
+          <button
+            className="md:hidden rounded-xl p-2"
+            style={{ background: colors.mist }}
+            onClick={() => setOpen((o) => !o)}
+            aria-label="Toggle menu"
+          >
+            <Menu />
+          </button>
+          <Link
+            to="/"
+            className="flex items-center gap-2 rounded-xl px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mediumpur/70"
+          >
+            <img
+              src="src/assets/icon1.png"
+              alt="PukkeConnect Logo"
+              className="size-10 rounded-xl object-contain flex-shrink-0"
+            />
+            <span className="hidden md:flex flex-col leading-tight font-semibold" style={{ color: colors.plum }}>
+              PukkeConnect
+              <span className="text-xs font-medium" style={{ color: colors.plum }}>
+                Society Admin
+              </span>
+            </span>
+          </Link>
+          <div className="ml-auto flex items-center gap-2 w-full md:w-auto">
+            <div className="relative flex-1 md:flex-none md:w-[360px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60" size={18} />
+              <input
+                placeholder="Search members, events, posts"
+                className="w-full rounded-2xl pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-lilac"
+                style={{ background: colors.mist, color: "#111" }}
+              />
+            </div>
+            <button
+              className="rounded-2xl px-3 py-2 text-white hidden md:block hover:opacity-90 transition-opacity"
+              style={{ background: colors.plum }}
+            >
+              New Event
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="mx-auto max-w-7xl py-6 grid grid-cols-12 gap-6 px-4 md:px-6 lg:px-8">
       
@@ -2747,4 +2796,3 @@ export default function SocietyAdminDashboard() {
     </Shell>
   );
 }
-

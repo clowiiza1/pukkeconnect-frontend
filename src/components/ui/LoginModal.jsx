@@ -1,6 +1,8 @@
 import { Dialog } from "@headlessui/react";
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
+import { normalizeRole, roleToDashboardPath } from "@/context/authUtils";
 import { useNavigate } from "react-router-dom";
 import AuthAPIs from "@/services/AuthAPIs.jsx";
 
@@ -63,41 +65,62 @@ export default function LoginModal({ open, onClose, goSignup, goForgot }) {
 
     setLoading(true);
     setError("");
+    setLoginStatus("");
+    setShowSuccess(false);
 
     try {
-      // call your service - adjust args if your API expects different names
       const res = await AuthAPIs.login({ universityNumber: studentNumber.trim(), password });
-
-      // Expected shapes (common patterns):
-      // 1) res = { user: { ... }, token: '...' }
-      // 2) res = { id, studentNumber, name, role, redirect, token }
-      // 3) res could directly be the user object
-      let user = null;
-
       if (!res) throw new Error("Empty response from auth service");
 
+      let user = null;
       if (res.user) user = res.user;
-      else if (res.role || res.redirect || res.id) user = res; // assume res is user
+      else if (res.role || res.redirect || res.id) user = res;
       else if (res.data && res.data.user) user = res.data.user;
-      else user = res; // fallback
+      else user = res;
 
-      setLoginStatus("success");
-      setShowSuccess(true);
-      setUserRole(user.role);
+      const roleCandidates = [
+        user?.role,
+        user?.userRole,
+        user?.roleName,
+        user?.type,
+        user?.user_type,
+        res?.role,
+        res?.data?.role,
+        res?.user?.role,
+        res?.user?.userRole,
+      ];
+      const rawRole = roleCandidates.find((value) => value != null && value !== "");
+      const normalizedRole = normalizeRole(rawRole);
+      const userForContext = normalizedRole && user ? { ...user, role: normalizedRole } : user;
 
-      // call your context login to set auth state
+      const tokenValue = res?.token ?? res?.data?.token ?? user?.token ?? res?.user?.token;
+
       try {
-        login(user, res.token ?? res.data?.token);
+        flushSync(() => {
+        login(userForContext, tokenValue);
+        });
       } catch {
-        try { login(user); } catch (_) { /* ignore */ }
+        try {
+          login(userForContext, tokenValue);
+        } catch {
+          try { login(userForContext); } catch { /* ignore */ }
+        }
       }
 
+      const resolvedRole = normalizeRole(userForContext?.role ?? rawRole);
+      const defaultDestination = resolvedRole === "student"
+        ? "/"
+        : roleToDashboardPath(resolvedRole);
+      const destination = userForContext?.redirect ?? res?.redirect ?? defaultDestination ?? "/";
+
+      setUserRole(resolvedRole ?? "");
+      setLoginStatus("success");
+      setShowSuccess(true);
+
       setTimeout(() => {
-        // route based on role or redirect path
-        const destination = user.redirect || (user.role === "student" ? "/" : user.redirect || (user.role === "society-admin" ? "/society-admin" : user.role === "admin" ? "/admin" : "/"));
         navigate(destination, { replace: true });
         handleClose();
-      }, 3000);
+      }, 1500);
     } catch (err) {
       setLoginStatus("error");
       // err could be Error or an object from Axios with response.data.message
