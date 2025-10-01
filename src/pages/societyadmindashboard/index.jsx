@@ -1,11 +1,30 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 //=====MOCK IMAGES FOR MEMBERS ======//
 import photo1 from "@/assets/photo1.jpg";
 import photo2 from "@/assets/photo2.jpg";
 import photo3 from "@/assets/photo3.jpg";
 import aws from "@/assets/aws.jpeg";
+// Society Admin Services
+import {
+  getSocietyDetails,
+  updateSociety,
+  getSocietyMembers,
+  updateMembershipStatus,
+  getSocietyEvents,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  cancelEvent,
+  getEventRsvps,
+  getSocietyPosts,
+  createPost,
+  updatePost,
+  deletePost,
+  getMySociety
+} from "@/services/societyAdmin";
 import {
   LayoutDashboard,
   Users,
@@ -32,6 +51,7 @@ import {
   CheckCircle,
   PauseCircle,
   XCircle,
+  MapPin,
 } from "lucide-react";
 
 
@@ -73,6 +93,63 @@ function Pill({ children }) {
     <span className="text-xs rounded-xl px-2 py-1" style={{ background: colors.mist }}>
       {children}
     </span>
+  );
+}
+
+// Confirmation Modal Component
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = "Confirm", cancelText = "Cancel", confirmColor = "red" }) {
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="absolute inset-0 bg-black/50"
+          onClick={onClose}
+        />
+
+        {/* Modal */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="relative bg-white rounded-3xl p-6 max-w-md w-full shadow-xl"
+          style={{ border: `1px solid ${colors.mist}` }}
+        >
+          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.plum }}>
+            {title}
+          </h3>
+          <p className="text-gray-600 mb-6">{message}</p>
+
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl font-medium transition-colors hover:bg-gray-100"
+              style={{ color: colors.plum }}
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={() => {
+                onConfirm();
+                onClose();
+              }}
+              className={`px-4 py-2 rounded-xl font-medium text-white transition-colors ${
+                confirmColor === 'red' ? 'bg-red-600 hover:bg-red-700' :
+                confirmColor === 'green' ? 'bg-green-600 hover:bg-green-700' :
+                'bg-gray-600 hover:bg-gray-700'
+              }`}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
   );
 }
 
@@ -147,16 +224,40 @@ const mockParticipation = [
 // Layout shell (light, like student dashboard)
 function Shell({ page, setPage, children }) {
   const [open, setOpen] = useState(true);
+  const [societyData, setSocietyData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth(); // Get user from AuthContext
+
   const nav = [
     { key: "overview", label: "Overview", icon: <LayoutDashboard size={18} /> },
     { key: "members", label: "Members", icon: <Users size={18} /> },
     { key: "events", label: "Events", icon: <CalendarDays size={18} /> },
     { key: "posts", label: "Posts", icon: <FileText size={18} /> },
+    { key: "posts-detailed", label: "Posts (Advanced)", icon: <FileText size={18} /> },
     { key: "requests", label: "Requests", icon: <ShieldCheck size={18} /> },
     { key: "messages", label: "Messages", icon: <MessageCircle size={18} /> }, // Added Messages
     { key: "settings", label: "Settings", icon: <Settings size={18} /> },
     { key: "metrics", label: "Metrics", icon: <BarChart3 size={18} /> },
   ];
+
+  // Load society data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+
+        // Get society data
+        const society = await getMySociety();
+        setSocietyData(society);
+      } catch (err) {
+        console.error("Error loading dashboard data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
 
   return (
@@ -252,9 +353,23 @@ function Shell({ page, setPage, children }) {
             </nav>
 
             <div className="mt-4 p-3 rounded-2xl" style={{ background: colors.mist }}>
-              <div className="text-xs opacity-70 mb-1">Managing</div>
-              <div className="text-sm font-semibold">AI & Robotics Society</div>
-              <div className="text-xs opacity-70">Role: Admin</div>
+              {loading ? (
+                <div className="text-xs text-gray-500">Loading...</div>
+              ) : (
+                <>
+                  <div className="text-xs opacity-70 mb-1">Managing</div>
+                  <div className="text-sm font-semibold truncate" title={societyData?.name}>
+                    {societyData?.name || 'AI & Robotics Society'}
+                  </div>
+                  <div className="text-xs opacity-70 mt-2">Admin</div>
+                  <div className="text-xs font-medium">
+                    {user ? `${user.firstName} ${user.lastName}` : 'Admin User'}
+                  </div>
+                  <div className="text-xs opacity-70">
+                    {user?.universityNumber || 'N/A'}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Logout Button - Positioned at the bottom */}
@@ -402,11 +517,72 @@ function OverviewPage() {
 //=======Members Page=====//
 function MembersPage() {
   const [search, setSearch] = useState("");
-  const [members, setMembers] = useState(mockMembers);
+  const [members, setMembers] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'details'
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const societyId = "1001"; // TODO: Get from auth context
+  const [societyName, setSocietyName] = useState("");
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    confirmText: "Confirm",
+    confirmColor: "red"
+  });
+
+  // Load members and society details from API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch society details and members in parallel
+        const [societyData, membersData] = await Promise.all([
+          getSocietyDetails(societyId),
+          getSocietyMembers(societyId)
+        ]);
+
+        // Set society name
+        setSocietyName(societyData.name || societyData.society_name || "");
+
+        // Transform backend data to match frontend structure
+        const transformedMembers = membersData.map(member => ({
+          id: member.studentId || member.student_id,
+          universityNumber: member.universityNumber || member.university_number || "",
+          name: `${member.firstName || member.first_name || ""} ${member.lastName || member.last_name || ""}`.trim(),
+          role: "Member", // Default role as requested
+          email: member.email || "",
+          phone: member.phoneNumber || member.phone_number || "",
+          joinDate: member.joinDate || member.join_date
+            ? new Date(member.joinDate || member.join_date).toLocaleDateString('en-US', {
+                year: '2-digit',
+                month: 'numeric',
+                day: 'numeric'
+              })
+            : "",
+          image: null, // Placeholder for future photo integration
+          status: member.status || "active"
+        }));
+
+        setMembers(transformedMembers);
+      } catch (err) {
+        console.error("Error loading data:", err);
+        setError("Failed to load data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [societyId]);
 
   const filteredMembers = members.filter((m) => {
     const searchTerm = search.toLowerCase();
@@ -438,29 +614,67 @@ function MembersPage() {
     setSelectAll(!selectAll);
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedMembers.length === 0) return;
-    
-    if (window.confirm(`Are you sure you want to delete ${selectedMembers.length} selected member(s)?`)) {
-      setMembers(members.filter(m => !selectedMembers.includes(m.id)));
-      setSelectedMembers([]);
-      setSelectAll(false);
-      console.log(`${selectedMembers.length} members deleted - Audit log recorded`);
-    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Suspend Members",
+      message: `Are you sure you want to suspend ${selectedMembers.length} selected member(s)?`,
+      confirmText: "Suspend",
+      confirmColor: "red",
+      onConfirm: async () => {
+        try {
+          // Update each member's status to suspended
+          await Promise.all(
+            selectedMembers.map(memberId =>
+              updateMembershipStatus(societyId, memberId, "suspended")
+            )
+          );
+
+          // Update local state
+          setMembers(members.map(member =>
+            selectedMembers.includes(member.id)
+              ? { ...member, status: "suspended" }
+              : member
+          ));
+
+          setSelectedMembers([]);
+          setSelectAll(false);
+          console.log(`${selectedMembers.length} members suspended`);
+        } catch (error) {
+          console.error("Error suspending members:", error);
+          alert("Failed to suspend members. Please try again.");
+        }
+      }
+    });
   };
 
-  const handleBulkStatusUpdate = (newStatus) => {
+  const handleBulkStatusUpdate = async (newStatus) => {
     if (selectedMembers.length === 0) return;
 
-    setMembers(members.map(member =>
-      selectedMembers.includes(member.id)
-        ? { ...member, status: newStatus }
-        : member
-    ));
-    
-    console.log(`${selectedMembers.length} members status updated to ${newStatus} - Audit log recorded`);
-    setSelectedMembers([]);
-    setSelectAll(false);
+    try {
+      // Update each member's status via API
+      await Promise.all(
+        selectedMembers.map(memberId =>
+          updateMembershipStatus(societyId, memberId, newStatus)
+        )
+      );
+
+      // Update local state
+      setMembers(members.map(member =>
+        selectedMembers.includes(member.id)
+          ? { ...member, status: newStatus }
+          : member
+      ));
+
+      console.log(`${selectedMembers.length} members status updated to ${newStatus}`);
+      setSelectedMembers([]);
+      setSelectAll(false);
+    } catch (error) {
+      console.error("Error updating member status:", error);
+      alert("Failed to update member status. Please try again.");
+    }
   };
 
   const handleExportSelected = () => {
@@ -495,12 +709,92 @@ function MembersPage() {
     console.log(`${selectedMembers.length} selected members exported - Audit log recorded`);
   };
 
-  const handleDeleteMember = (memberId) => {
-    if (window.confirm("Are you sure you want to delete this member?")) {
-      setMembers(members.filter(m => m.id !== memberId));
-      setSelectedMembers(prev => prev.filter(id => id !== memberId));
-      console.log(`Member ${memberId} deleted - Audit log recorded`);
+  const handleSuspendMember = async (memberId) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Suspend Member",
+      message: "Are you sure you want to suspend this member?",
+      confirmText: "Suspend",
+      confirmColor: "red",
+      onConfirm: async () => {
+        try {
+          await updateMembershipStatus(societyId, memberId, "suspended");
+
+          // Update local state
+          setMembers(members.map(member =>
+            member.id === memberId
+              ? { ...member, status: "suspended" }
+              : member
+          ));
+          setSelectedMembers(prev => prev.filter(id => id !== memberId));
+
+          // If viewing this member's details, update selected member
+          if (selectedMember && selectedMember.id === memberId) {
+            setSelectedMember({ ...selectedMember, status: "suspended" });
+          }
+
+          console.log(`Member ${memberId} suspended`);
+        } catch (error) {
+          console.error("Error suspending member:", error);
+          alert("Failed to suspend member. Please try again.");
+        }
+      }
+    });
+  };
+
+  const handleApproveMember = async (memberId) => {
+    try {
+      await updateMembershipStatus(societyId, memberId, "active");
+
+      // Update local state
+      setMembers(members.map(member =>
+        member.id === memberId
+          ? { ...member, status: "active" }
+          : member
+      ));
+
+      // Update selected member if viewing details
+      if (selectedMember && selectedMember.id === memberId) {
+        setSelectedMember({ ...selectedMember, status: "active" });
+      }
+
+      console.log(`Member ${memberId} approved`);
+    } catch (error) {
+      console.error("Error approving member:", error);
+      alert("Failed to approve member. Please try again.");
     }
+  };
+
+  const handleRejectMember = async (memberId) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Reject Membership",
+      message: "Are you sure you want to reject this membership request?",
+      confirmText: "Reject",
+      confirmColor: "red",
+      onConfirm: async () => {
+        try {
+          await updateMembershipStatus(societyId, memberId, "rejected");
+
+          // Update local state
+          setMembers(members.map(member =>
+            member.id === memberId
+              ? { ...member, status: "rejected" }
+              : member
+          ));
+
+          // Update selected member if viewing details
+          if (selectedMember && selectedMember.id === memberId) {
+            setSelectedMember({ ...selectedMember, status: "rejected" });
+          }
+
+          console.log(`Member ${memberId} rejected`);
+        } catch (error) {
+          console.error("Error rejecting member:", error);
+          alert("Failed to reject member. Please try again.");
+        }
+      }
+    });
   };
 
   const handleViewMemberDetails = (member) => {
@@ -562,11 +856,19 @@ function MembersPage() {
 
           {/* Member Profile Header */}
           <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl">
-            <img
-              src={selectedMember.image}
-              alt={selectedMember.name}
-              className="w-20 h-20 rounded-full object-cover"
-            />
+            {selectedMember.image ? (
+              <img
+                src={selectedMember.image}
+                alt={selectedMember.name}
+                className="w-20 h-20 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-mediumpur/20 flex items-center justify-center">
+                <span className="text-2xl font-medium text-mediumpur">
+                  {selectedMember.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                </span>
+              </div>
+            )}
             <div>
               <h2 className="text-xl font-semibold text-gray-900">{selectedMember.name}</h2>
               <p className="text-gray-600">{selectedMember.role}</p>
@@ -586,45 +888,134 @@ function MembersPage() {
           <div className="grid md:grid-cols-2 gap-6">
             <div className="bg-white p-4 rounded-2xl shadow-sm border">
               <h3 className="font-semibold text-gray-900 mb-3">Contact Information</h3>
-              <div className="space-y-2">
-                <div>
-                  <strong>Email:</strong> {selectedMember.email}
+              <div className="space-y-3">
+                <div className="flex items-start">
+                  <span className="text-gray-600 w-24 flex-shrink-0">Email:</span>
+                  <span className="text-gray-900 font-medium">{selectedMember.email || 'Not provided'}</span>
                 </div>
-                <div>
-                  <strong>Phone:</strong> {selectedMember.phone}
+                <div className="flex items-start">
+                  <span className="text-gray-600 w-24 flex-shrink-0">Phone:</span>
+                  <span className="text-gray-900 font-medium">{selectedMember.phone || 'Not provided'}</span>
                 </div>
-                <div>
-                  <strong>Join Date:</strong> {selectedMember.joinDate}
+                <div className="flex items-start">
+                  <span className="text-gray-600 w-24 flex-shrink-0">Joined:</span>
+                  <span className="text-gray-900 font-medium">{selectedMember.joinDate || 'Unknown'}</span>
+                </div>
+                <div className="flex items-start">
+                  <span className="text-gray-600 w-24 flex-shrink-0">Status:</span>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    selectedMember.status === 'approved' ? 'bg-green-100 text-green-800' :
+                    selectedMember.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    selectedMember.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                    selectedMember.status === 'suspended' ? 'bg-orange-100 text-orange-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedMember.status || 'active'}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Activity Information */}
             <div className="bg-white p-4 rounded-2xl shadow-sm border">
-              <h3 className="font-semibold text-gray-900 mb-3">Recent Activity</h3>
-              <div className="space-y-2 text-sm text-gray-600">
-                <div>• Last login: {selectedMember.lastLogin || '2 days ago'}</div>
-                <div>• Events attended: {selectedMember.eventsAttended || '5'}</div>
-                <div>• Society meetings: {selectedMember.meetingsAttended || '3'}</div>
-                <div>• Member since: {selectedMember.joinDate}</div>
+              <h3 className="font-semibold text-gray-900 mb-3">Membership Summary</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start">
+                  <span className="text-gray-600 w-32 flex-shrink-0">Member Since:</span>
+                  <span className="text-gray-900">{selectedMember.joinDate || 'Unknown'}</span>
+                </div>
+                <div className="flex items-start">
+                  <span className="text-gray-600 w-32 flex-shrink-0">Role:</span>
+                  <span className="text-gray-900">{selectedMember.role || 'Member'}</span>
+                </div>
+                <div className="flex items-start">
+                  <span className="text-gray-600 w-32 flex-shrink-0">University Number:</span>
+                  <span className="text-gray-900 font-mono text-sm">{selectedMember.universityNumber || 'Not available'}</span>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-500 italic">
+                  Activity tracking coming soon - will show events attended, posts created, and engagement metrics.
+                </p>
               </div>
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
-            <button
-              onClick={() => handleDeleteMember(selectedMember.id)}
-              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <Trash2 size={16} />
-              Delete Member
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Edit3 size={16} />
-              Edit Profile
-            </button>
+            {selectedMember.status === 'pending' && (
+              <>
+                <button
+                  onClick={() => handleApproveMember(selectedMember.id)}
+                  className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                >
+                  <CheckCircle size={16} />
+                  Approve Membership
+                </button>
+                <button
+                  onClick={() => handleRejectMember(selectedMember.id)}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-600"
+                >
+                  <XCircle size={16} />
+                  Reject Request
+                </button>
+              </>
+            )}
+            {selectedMember.status !== 'pending' && selectedMember.status !== 'suspended' && (
+              <button
+                onClick={() => handleSuspendMember(selectedMember.id)}
+                className="flex items-center gap-2 px-4 py-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-orange-600"
+              >
+                <PauseCircle size={16} />
+                Suspend Member
+              </button>
+            )}
+            {selectedMember.status === 'suspended' && (
+              <button
+                onClick={() => handleApproveMember(selectedMember.id)}
+                className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+              >
+                <CheckCircle size={16} />
+                Reactivate Member
+              </button>
+            )}
           </div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <Card
+        title="Members"
+        subtitle="Manage member accounts and view member details"
+      >
+        <div className="space-y-4 animate-pulse">
+          <div className="h-12 rounded-2xl" style={{ background: colors.paper }}></div>
+          <div className="h-64 rounded-2xl" style={{ background: colors.paper }}></div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Card
+        title="Members"
+        subtitle="Manage member accounts and view member details"
+      >
+        <div className="text-center py-12">
+          <div className="text-red-600 text-lg font-medium mb-2">Error Loading Members</div>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-mediumpur text-white px-4 py-2 rounded-lg hover:bg-mediumpur/90 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       </Card>
     );
@@ -633,7 +1024,7 @@ function MembersPage() {
   // Main Member List View
   return (
     <Card
-      title="Members"
+      title={societyName ? `Members - ${societyName}` : "Members"}
       subtitle="Manage member accounts and view member details"
     >
       {/* Search and Actions Bar */}
@@ -694,11 +1085,11 @@ function MembersPage() {
                 Suspend
               </button>
               <button
-                onClick={handleBulkDelete}
+                onClick={() => handleBulkStatusUpdate('rejected')}
                 className="flex items-center gap-2 px-3 py-1.5 text-red-700 bg-red-100 rounded-lg hover:bg-red-200 transition-colors text-sm"
               >
-                <Trash2 size={14} />
-                Delete Selected
+                <XCircle size={14} />
+                Reject
               </button>
             </div>
           </div>
@@ -765,11 +1156,19 @@ function MembersPage() {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={member.image}
-                        alt={member.name}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
+                      {member.image ? (
+                        <img
+                          src={member.image}
+                          alt={member.name}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-mediumpur/20 flex items-center justify-center">
+                          <span className="text-xs font-medium text-mediumpur">
+                            {member.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
                       <div>
                         <div className="text-sm font-medium text-gray-900">{member.name}</div>
                         <div className="text-xs text-gray-500">{member.role}</div>
@@ -799,13 +1198,33 @@ function MembersPage() {
                       >
                         <Eye size={14} />
                       </button>
-                      <button
-                        onClick={() => handleDeleteMember(member.id)}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete member"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {member.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleApproveMember(member.id)}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="Approve membership"
+                          >
+                            <CheckCircle size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleRejectMember(member.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Reject membership"
+                          >
+                            <XCircle size={14} />
+                          </button>
+                        </>
+                      )}
+                      {member.status !== 'pending' && member.status !== 'suspended' && (
+                        <button
+                          onClick={() => handleSuspendMember(member.id)}
+                          className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                          title="Suspend member"
+                        >
+                          <PauseCircle size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -822,6 +1241,17 @@ function MembersPage() {
           )}
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        confirmColor={confirmModal.confirmColor}
+      />
     </Card>
   );
 }
@@ -829,24 +1259,136 @@ function MembersPage() {
 
 //====== Events Page =====//
 function EventsPage() {
-  const [events, setEvents] = useState(mockEvents);
-  const [filteredEvents, setFilteredEvents] = useState(mockEvents);
+  const [events, setEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [originalEvent, setOriginalEvent] = useState(null); // Track original values
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [rsvpList, setRsvpList] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const societyId = "1001"; // TODO: Get from auth context
   const [newEvent, setNewEvent] = useState({
     title: "",
     description: "",
     date: "",
     time: "",
+    duration: "", // Duration in hours
     location: "",
-    poster: null,
-    posterPreview: null,
     maxAttendees: "",
     category: "Workshop"
   });
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    confirmText: "Confirm",
+    confirmColor: "red"
+  });
+
+  // Load events from API
+  useEffect(() => {
+    const loadEvents = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await getSocietyEvents(societyId);
+        console.log("Events API response:", response);
+        console.log("Response type:", typeof response);
+        console.log("Is array?", Array.isArray(response));
+
+        // Handle if response is wrapped in data property
+        const eventsData = Array.isArray(response) ? response : (response?.data || response?.events || []);
+        console.log("Events data to transform:", eventsData);
+
+        if (!Array.isArray(eventsData)) {
+          console.error("Events data is not an array:", eventsData);
+          setEvents([]);
+          setFilteredEvents([]);
+          return;
+        }
+
+        // Transform backend data to match frontend structure
+        const transformedEvents = eventsData.map(event => {
+          console.log("Transforming event:", event);
+          return {
+            id: event.eventId || event.id || event.event_id,
+            title: event.title,
+            description: event.description,
+            date: event.startsAt || event.starts_at
+              ? new Date(event.startsAt || event.starts_at).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                })
+              : "",
+            time: event.startsAt || event.starts_at
+              ? new Date(event.startsAt || event.starts_at).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              : "",
+            location: event.location || "",
+            rsvp: event.rsvps || event.rsvpCount || event.rsvp_count || 0,
+            capacity: event.capacity,
+            startsAt: event.startsAt || event.starts_at,
+            endsAt: event.endsAt || event.ends_at,
+            status: event.status || 'scheduled',
+            rsvpList: [] // Will be loaded on demand
+          };
+        });
+
+        console.log("Transformed events:", transformedEvents);
+        setEvents(transformedEvents);
+        setFilteredEvents(transformedEvents);
+      } catch (err) {
+        console.error("Error loading events:", err);
+        setError("Failed to load events. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEvents();
+  }, [societyId]);
+
+  // Load RSVP data when an event is selected
+  useEffect(() => {
+    const loadRsvpData = async () => {
+      if (selectedEvent && selectedEvent.id) {
+        try {
+          const rsvpData = await getEventRsvps(selectedEvent.id);
+
+          // Update the selected event with RSVP list
+          setSelectedEvent(prev => ({
+            ...prev,
+            rsvpList: rsvpData.map(rsvp => ({
+              name: `${rsvp.firstName || rsvp.first_name || ''} ${rsvp.lastName || rsvp.last_name || ''}`.trim(),
+              email: rsvp.email || '',
+              studentId: rsvp.universityNumber || rsvp.university_number || rsvp.studentId || rsvp.student_id,
+              rsvpDate: rsvp.createdAt || rsvp.created_at
+                ? new Date(rsvp.createdAt || rsvp.created_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })
+                : ""
+            }))
+          }));
+        } catch (error) {
+          console.error("Error loading RSVP data:", error);
+        }
+      }
+    };
+
+    loadRsvpData();
+  }, [selectedEvent?.id]);
 
   // Filter events based on search query
   useEffect(() => {
@@ -950,85 +1492,217 @@ function EventsPage() {
   };
 
   // Create new event (Main Flow steps 1-3)
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     const errors = validateEvent(newEvent);
     if (Object.keys(errors).length > 0) {
-      // Show validation errors (Alternative Flow 2a)
+      // Show validation errors
       alert("Please fix the following errors:\n" + Object.values(errors).join('\n'));
       return;
     }
 
-    const event = {
-      id: Date.now().toString(),
-      ...newEvent,
-      rsvp: 0,
-      rsvpList: [],
-      status: 'upcoming',
-      createdAt: new Date().toISOString(),
-      createdBy: "Society Admin"
-    };
-    
-    setEvents(prev => [...prev, event]);
-    setIsCreating(false);
-    setNewEvent({
-      title: "",
-      description: "",
-      date: "",
-      time: "",
-      location: "",
-      poster: null,
-      posterPreview: null,
-      maxAttendees: "",
-      category: "Workshop"
-    });
+    try {
+      // Combine date and time into ISO string
+      const dateTimeString = `${newEvent.date}T${newEvent.time}`;
+      const startsAt = new Date(dateTimeString);
 
-    // Postconditions: Event is published to platform calendar
-    console.log("Event published to platform calendar:", event.title);
+      // Calculate end time based on duration
+      let endsAt = null;
+      if (newEvent.duration) {
+        const durationHours = parseFloat(newEvent.duration);
+        endsAt = new Date(startsAt.getTime() + durationHours * 60 * 60 * 1000);
+      }
+
+      const eventData = {
+        title: newEvent.title,
+        description: newEvent.description,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt ? endsAt.toISOString() : null,
+        location: newEvent.location,
+        capacity: newEvent.maxAttendees ? parseInt(newEvent.maxAttendees) : null
+      };
+
+      const createdEvent = await createEvent(societyId, eventData);
+
+      // Transform and add to local state
+      const transformedEvent = {
+        id: createdEvent.eventId || createdEvent.id || createdEvent.event_id,
+        title: createdEvent.title,
+        description: createdEvent.description,
+        date: new Date(createdEvent.startsAt || createdEvent.starts_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }),
+        time: new Date(createdEvent.startsAt || createdEvent.starts_at).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        location: createdEvent.location || "",
+        rsvp: 0,
+        capacity: createdEvent.capacity,
+        startsAt: createdEvent.startsAt || createdEvent.starts_at,
+        endsAt: createdEvent.endsAt || createdEvent.ends_at
+      };
+
+      setEvents(prev => [...prev, transformedEvent]);
+      setIsCreating(false);
+      setNewEvent({
+        title: "",
+        description: "",
+        date: "",
+        time: "",
+        duration: "",
+        location: "",
+        maxAttendees: "",
+        category: "Workshop"
+      });
+    } catch (error) {
+      console.error("Error creating event:", error);
+      alert("Failed to create event. Please try again.");
+    }
   };
 
   // Start editing an event
   const handleEdit = (event) => {
-    setEditingEvent({
+    console.log("Editing event:", event);
+
+    // Extract date and time from startsAt
+    const startsAt = new Date(event.startsAt);
+    const date = startsAt.toISOString().split('T')[0];
+    const time = startsAt.toTimeString().slice(0, 5);
+
+    // Calculate duration if endsAt exists
+    let duration = "";
+    if (event.endsAt) {
+      const endsAt = new Date(event.endsAt);
+      const durationMs = endsAt - startsAt;
+      const durationHours = durationMs / (1000 * 60 * 60);
+      duration = durationHours.toString();
+    }
+
+    const editData = {
       ...event,
-      posterPreview: event.posterPreview || event.poster
-    });
+      date,
+      time,
+      duration,
+      maxAttendees: event.capacity || ""
+    };
+
+    console.log("Edit data:", editData);
+    setEditingEvent(editData);
+    setOriginalEvent(editData); // Save original for comparison
   };
 
   // Save edited event
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     const errors = validateEvent(editingEvent);
     if (Object.keys(errors).length > 0) {
       alert("Please fix the following errors:\n" + Object.values(errors).join('\n'));
       return;
     }
 
-    setEvents(prev => prev.map(e => e.id === editingEvent.id ? editingEvent : e));
-    setEditingEvent(null);
+    try {
+      console.log("Saving event with ID:", editingEvent.id);
+      console.log("Full editing event:", editingEvent);
+
+      // Combine date and time into ISO string
+      const dateTimeString = `${editingEvent.date}T${editingEvent.time}`;
+      const startsAt = new Date(dateTimeString);
+
+      // Calculate end time based on duration
+      let endsAt = null;
+      if (editingEvent.duration) {
+        const durationHours = parseFloat(editingEvent.duration);
+        endsAt = new Date(startsAt.getTime() + durationHours * 60 * 60 * 1000);
+      }
+
+      const eventData = {
+        title: editingEvent.title,
+        description: editingEvent.description,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt ? endsAt.toISOString() : null,
+        location: editingEvent.location,
+        capacity: editingEvent.maxAttendees ? parseInt(editingEvent.maxAttendees) : editingEvent.capacity
+      };
+
+      console.log("Event data to update:", eventData);
+      const updatedEvent = await updateEvent(editingEvent.id, eventData);
+
+      // Transform and update local state
+      const transformedEvent = {
+        id: updatedEvent.eventId || updatedEvent.id || updatedEvent.event_id,
+        title: updatedEvent.title,
+        description: updatedEvent.description,
+        date: new Date(updatedEvent.startsAt || updatedEvent.starts_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }),
+        time: new Date(updatedEvent.startsAt || updatedEvent.starts_at).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        location: updatedEvent.location || "",
+        rsvp: editingEvent.rsvp || 0,
+        capacity: updatedEvent.capacity,
+        startsAt: updatedEvent.startsAt || updatedEvent.starts_at,
+        endsAt: updatedEvent.endsAt || updatedEvent.ends_at
+      };
+
+      setEvents(prev => prev.map(e => e.id === editingEvent.id ? transformedEvent : e));
+      setEditingEvent(null);
+    } catch (error) {
+      console.error("Error updating event:", error);
+      alert("Failed to update event. Please try again.");
+    }
   };
 
   // Delete event
   const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) {
-      setEvents(prev => prev.filter(e => e.id !== id));
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Event",
+      message: "Are you sure you want to delete this event? This action cannot be undone.",
+      confirmText: "Delete",
+      confirmColor: "red",
+      onConfirm: async () => {
+        try {
+          await deleteEvent(id);
+          setEvents(prev => prev.filter(e => e.id !== id));
+        } catch (error) {
+          console.error("Error deleting event:", error);
+          alert("Failed to delete event. Please try again.");
+        }
+      }
+    });
   };
 
   // Cancel event (Alternative Flow 4a)
   const handleCancelEvent = (eventId) => {
-    if (window.confirm("Cancel this event? All RSVPs will be notified.")) {
-      setEvents(prev => prev.map(e => 
-        e.id === eventId 
-          ? { ...e, status: 'cancelled', cancelledAt: new Date().toISOString() }
-          : e
-      ));
+    setConfirmModal({
+      isOpen: true,
+      title: "Cancel Event",
+      message: "Cancel this event? All RSVPs will be notified.",
+      confirmText: "Cancel Event",
+      confirmColor: "red",
+      onConfirm: async () => {
+        try {
+          const result = await cancelEvent(eventId);
 
-      // Notify students who RSVP'd (Alternative Flow 4a)
-      const event = events.find(e => e.id === eventId);
-      if (event && event.rsvpList && event.rsvpList.length > 0) {
-        console.log(`Notifying ${event.rsvpList.length} students about event cancellation:`, event.title);
-        // In real implementation, send notifications to each student
+          // Update local state
+          setEvents(prev => prev.map(e =>
+            e.id === eventId
+              ? { ...e, status: 'cancelled' }
+              : e
+          ));
+
+          alert(`Event cancelled successfully. ${result.notifiedStudents} student(s) have been notified.`);
+        } catch (error) {
+          console.error("Error cancelling event:", error);
+          alert("Failed to cancel event. Please try again.");
+        }
       }
-    }
+    });
   };
 
   // View RSVP list (Main Flow step 5)
@@ -1062,33 +1736,68 @@ function EventsPage() {
     document.body.removeChild(link);
   };
 
+  // Check if event has been modified
+  const hasEventChanged = () => {
+    if (!editingEvent || !originalEvent) return false;
+
+    return (
+      editingEvent.title !== originalEvent.title ||
+      editingEvent.description !== originalEvent.description ||
+      editingEvent.date !== originalEvent.date ||
+      editingEvent.time !== originalEvent.time ||
+      editingEvent.duration !== originalEvent.duration ||
+      editingEvent.location !== originalEvent.location ||
+      editingEvent.maxAttendees !== originalEvent.maxAttendees ||
+      editingEvent.category !== originalEvent.category
+    );
+  };
+
   // Cancel creation or editing
   const handleCancel = () => {
     setIsCreating(false);
     setEditingEvent(null);
+    setOriginalEvent(null);
     setNewEvent({
       title: "",
       description: "",
       date: "",
       time: "",
+      duration: "",
       location: "",
-      poster: null,
-      posterPreview: null,
       maxAttendees: "",
       category: "Workshop"
     });
   };
 
+  // Check if event has passed
+  const isEventPast = (event) => {
+    const endTime = event.endsAt ? new Date(event.endsAt) : new Date(event.startsAt);
+    return endTime < new Date();
+  };
+
   // Get event status badge
   const getEventStatusBadge = (event) => {
+    // Check if event has passed
+    const isPast = isEventPast(event);
+
     const statusConfig = {
       upcoming: { color: 'bg-green-100 text-green-800', label: 'Upcoming' },
+      past: { color: 'bg-gray-100 text-gray-800', label: 'Past' },
       ongoing: { color: 'bg-blue-100 text-blue-800', label: 'Ongoing' },
       completed: { color: 'bg-gray-100 text-gray-800', label: 'Completed' },
-      cancelled: { color: 'bg-red-100 text-red-800', label: 'Cancelled' }
+      cancelled: { color: 'bg-red-100 text-red-800', label: 'Cancelled' },
+      scheduled: { color: 'bg-green-100 text-green-800', label: 'Upcoming' }
     };
 
-    const config = statusConfig[event.status] || statusConfig.upcoming;
+    // Determine status - prioritize cancelled status
+    let status = event.status || 'upcoming';
+    if (status === 'cancelled') {
+      status = 'cancelled';
+    } else if (!event.status || event.status === 'scheduled') {
+      status = isPast ? 'past' : 'upcoming';
+    }
+
+    const config = statusConfig[status] || statusConfig.upcoming;
     return (
       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
         {config.label}
@@ -1158,7 +1867,7 @@ function EventsPage() {
         </div>
         <div className="bg-white rounded-xl p-4 border border-gray-200">
           <div className="text-2xl font-bold text-green-600">
-            {events.filter(e => e.status === 'upcoming').length}
+            {events.filter(e => !isEventPast(e) && e.status !== 'cancelled').length}
           </div>
           <div className="text-sm text-gray-600">Upcoming</div>
         </div>
@@ -1170,9 +1879,9 @@ function EventsPage() {
         </div>
         <div className="bg-white rounded-xl p-4 border border-gray-200">
           <div className="text-2xl font-bold text-gray-600">
-            {events.filter(e => e.status === 'completed').length}
+            {events.filter(e => isEventPast(e)).length}
           </div>
-          <div className="text-sm text-gray-600">Completed</div>
+          <div className="text-sm text-gray-600">Past</div>
         </div>
       </div>
 
@@ -1186,45 +1895,14 @@ function EventsPage() {
               {/* Event Poster Upload */}
               <div className="lg:col-span-1">
                 <div className="text-sm font-medium mb-2">Event Poster</div>
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <div
-                    className="w-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-6 hover:bg-mist/50 transition"
-                    style={{ borderColor: colors.mist }}
-                  >
-                    {newEvent.posterPreview ? (
-                      <img
-                        src={newEvent.posterPreview}
-                        alt="Event poster preview"
-                        className="w-full h-48 object-cover rounded-xl mb-2"
-                      />
-                    ) : (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-10 w-10 text-gray-400 mb-2"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
-                          />
-                        </svg>
-                        <span className="text-gray-500 text-sm">Click to upload poster</span>
-                        <span className="text-gray-400 text-xs mt-1">PNG, JPG up to 5MB</span>
-                      </>
-                    )}
-                  </div>
-                </label>
+                <div
+                  className="w-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-6 bg-gray-50"
+                  style={{ borderColor: colors.mist }}
+                >
+                  <ImagePlus className="h-10 w-10 text-gray-400 mb-2" />
+                  <span className="text-gray-500 text-sm font-medium">Coming Soon</span>
+                  <span className="text-gray-400 text-xs mt-1">Photo upload functionality</span>
+                </div>
               </div>
 
               {/* Event Details Form */}
@@ -1271,7 +1949,7 @@ function EventsPage() {
                   />
                 </label>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="block">
                     <div className="text-sm font-medium mb-1">Date *</div>
                     <input
@@ -1285,13 +1963,30 @@ function EventsPage() {
                   </label>
 
                   <label className="block">
-                    <div className="text-sm font-medium mb-1">Time *</div>
+                    <div className="text-sm font-medium mb-1">Start Time *</div>
                     <input
                       type="time"
                       name="time"
                       value={newEvent.time}
                       onChange={handleInputChange}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-plum focus:ring-1 focus:ring-plum text-sm"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="block">
+                    <div className="text-sm font-medium mb-1">Duration (hours) *</div>
+                    <input
+                      type="number"
+                      name="duration"
+                      value={newEvent.duration}
+                      onChange={handleInputChange}
+                      min="0.5"
+                      max="24"
+                      step="0.5"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-plum focus:ring-1 focus:ring-plum text-sm"
+                      placeholder="e.g., 2"
                     />
                   </label>
 
@@ -1353,44 +2048,14 @@ function EventsPage() {
               {/* Event Poster Upload */}
               <div className="lg:col-span-1">
                 <div className="text-sm font-medium mb-2">Event Poster</div>
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <div
-                    className="w-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-6 hover:bg-mist/50 transition"
-                    style={{ borderColor: colors.mist }}
-                  >
-                    {editingEvent.posterPreview ? (
-                      <img
-                        src={editingEvent.posterPreview}
-                        alt="Event poster preview"
-                        className="w-full h-48 object-cover rounded-xl mb-2"
-                      />
-                    ) : (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-10 w-10 text-gray-400 mb-2"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
-                          />
-                        </svg>
-                        <span className="text-gray-500 text-sm">Click to upload poster</span>
-                      </>
-                    )}
-                  </div>
-                </label>
+                <div
+                  className="w-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-6 bg-gray-50"
+                  style={{ borderColor: colors.mist }}
+                >
+                  <ImagePlus className="h-10 w-10 text-gray-400 mb-2" />
+                  <span className="text-gray-500 text-sm font-medium">Coming Soon</span>
+                  <span className="text-gray-400 text-xs mt-1">Photo upload functionality</span>
+                </div>
               </div>
 
               {/* Event Details Form */}
@@ -1435,7 +2100,7 @@ function EventsPage() {
                   />
                 </label>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="block">
                     <div className="text-sm font-medium mb-1">Date *</div>
                     <input
@@ -1448,13 +2113,30 @@ function EventsPage() {
                   </label>
 
                   <label className="block">
-                    <div className="text-sm font-medium mb-1">Time *</div>
+                    <div className="text-sm font-medium mb-1">Start Time *</div>
                     <input
                       type="time"
                       name="time"
                       value={editingEvent.time}
                       onChange={handleInputChange}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-plum focus:ring-1 focus:ring-plum text-sm"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="block">
+                    <div className="text-sm font-medium mb-1">Duration (hours) *</div>
+                    <input
+                      type="number"
+                      name="duration"
+                      value={editingEvent.duration || ""}
+                      onChange={handleInputChange}
+                      min="0.5"
+                      max="24"
+                      step="0.5"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-plum focus:ring-1 focus:ring-plum text-sm"
+                      placeholder="e.g., 2"
                     />
                   </label>
 
@@ -1488,7 +2170,12 @@ function EventsPage() {
             <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
               <button
                 onClick={handleSaveEdit}
-                className="px-6 py-2 rounded-lg text-white hover:opacity-90 transition text-sm"
+                disabled={!hasEventChanged()}
+                className={`px-6 py-2 rounded-lg text-white transition text-sm ${
+                  hasEventChanged()
+                    ? 'hover:opacity-90 cursor-pointer'
+                    : 'opacity-50 cursor-not-allowed'
+                }`}
                 style={{ background: colors.plum }}
               >
                 Save Changes
@@ -1574,14 +2261,6 @@ function EventsPage() {
             className="rounded-2xl p-4 space-y-4 bg-white border hover:shadow-lg transition-shadow"
             style={{ borderColor: colors.mist }}
           >
-            {/* Event Header */}
-            <div className="flex justify-between items-start">
-              {getEventStatusBadge(event)}
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                {event.category}
-              </span>
-            </div>
-
             {/* Event Poster */}
             {event.posterPreview && (
               <img
@@ -1593,14 +2272,22 @@ function EventsPage() {
             
             {/* Event Details */}
             <div className="space-y-2">
-              <div className="font-semibold text-lg">{event.title}</div>
-              <div className="text-sm text-gray-600 line-clamp-2">{event.description}</div>
-              <div className="text-xs opacity-70">
-                {event.time} • {event.location}
+              <div className="flex items-center justify-between">
+                <div className="font-semibold text-lg">{event.title}</div>
+                {getEventStatusBadge(event)}
               </div>
-              {event.maxAttendees && (
+              <div className="text-sm text-gray-600 line-clamp-2">{event.description}</div>
+              <div className="text-xs opacity-70 flex items-center gap-1">
+                <CalendarDays size={12} />
+                {event.date} • {event.time}
+              </div>
+              <div className="text-xs opacity-70 flex items-center gap-1">
+                <MapPin size={12} />
+                {event.location}
+              </div>
+              {event.capacity && (
                 <div className="text-xs text-gray-500">
-                  Max attendees: {event.maxAttendees}
+                  Max attendees: {event.capacity}
                 </div>
               )}
             </div>
@@ -1615,27 +2302,37 @@ function EventsPage() {
                 <Users size={14} /> {event.rsvp || 0} RSVPs
               </button>
               <div className="flex gap-2">
-                <button
-                  onClick={() => handleEdit(event)}
-                  className="rounded-lg px-3 py-1 text-sm hover:bg-blue-100 transition-colors flex items-center gap-1 text-blue-600"
-                >
-                  <Edit3 size={14} />
-                </button>
-                {event.status === 'upcoming' && (
-                  <button
-                    onClick={() => handleCancelEvent(event.id)}
-                    className="rounded-lg px-3 py-1 text-sm hover:bg-orange-100 transition-colors flex items-center gap-1 text-orange-600"
-                    title="Cancel Event"
-                  >
-                    <XCircle size={14} />
-                  </button>
+                {!isEventPast(event) ? (
+                  <>
+                    <button
+                      onClick={() => handleEdit(event)}
+                      className="rounded-lg px-3 py-1 text-sm hover:bg-blue-100 transition-colors flex items-center gap-1 text-blue-600"
+                      title="Edit Event"
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    {(!event.status || event.status === 'upcoming') && (
+                      <button
+                        onClick={() => handleCancelEvent(event.id)}
+                        className="rounded-lg px-3 py-1 text-sm hover:bg-orange-100 transition-colors flex items-center gap-1 text-orange-600"
+                        title="Cancel Event"
+                      >
+                        <XCircle size={14} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      className="rounded-lg px-3 py-1 text-sm hover:bg-red-100 transition-colors flex items-center gap-1 text-red-600"
+                      title="Delete Event"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-500 px-3 py-1">
+                    Past events cannot be edited
+                  </span>
                 )}
-                <button
-                  onClick={() => handleDelete(event.id)}
-                  className="rounded-lg px-3 py-1 text-sm hover:bg-red-100 transition-colors flex items-center gap-1 text-red-600"
-                >
-                  <Trash2 size={14} />
-                </button>
               </div>
             </div>
           </div>
@@ -1671,16 +2368,339 @@ function EventsPage() {
           </button>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        confirmColor={confirmModal.confirmColor}
+      />
     </Card>
   );
 }
 
-
-
-//====== Posts Page ======//
-//====== Posts Page ======//
+//====== Posts Page (Simplified - Backend Only) ======//
 function PostsPage() {
-  const [posts, setPosts] = useState([
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'create'
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [postContent, setPostContent] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [societyId, setSocietyId] = useState(null);
+  const [deleteConfirmPost, setDeleteConfirmPost] = useState(null);
+
+  // Load society ID and posts from API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+
+        // Get the current user's society
+        const society = await getMySociety();
+        setSocietyId(society.societyId);
+
+        // Load posts for this society
+        const response = await getSocietyPosts(society.societyId);
+        const postsData = Array.isArray(response) ? response : (response?.data || []);
+        setPosts(postsData);
+      } catch (err) {
+        console.error("Error loading data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Filter posts by search
+  const filteredPosts = posts.filter(post =>
+    post.content.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Create or update post
+  const handleSavePost = async (e) => {
+    e.preventDefault();
+
+    if (!postContent.trim()) {
+      alert("Post content is required");
+      return;
+    }
+
+    if (!societyId) {
+      alert("Society information not loaded. Please refresh the page.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      let savedPost;
+
+      if (selectedPost) {
+        // Update existing post
+        savedPost = await updatePost(selectedPost.postId, { content: postContent });
+        setPosts(posts.map(p => p.postId === savedPost.postId ? savedPost : p));
+      } else {
+        // Create new post
+        savedPost = await createPost(societyId, { content: postContent });
+        setPosts([savedPost, ...posts]);
+      }
+
+      // Reset form
+      setPostContent('');
+      setSelectedPost(null);
+      setViewMode('list');
+    } catch (error) {
+      console.error("Error saving post:", error);
+      alert("Failed to save post. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Edit post
+  const handleEditPost = (post) => {
+    setSelectedPost(post);
+    setPostContent(post.content);
+    setViewMode('create');
+  };
+
+  // Delete post
+  const handleDeletePost = async (postId) => {
+    try {
+      await deletePost(postId);
+      setPosts(posts.filter(p => p.postId !== postId));
+      setDeleteConfirmPost(null);
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      alert("Failed to delete post. Please try again.");
+    }
+  };
+
+  // Cancel editing
+  const handleCancel = () => {
+    setPostContent('');
+    setSelectedPost(null);
+    setViewMode('list');
+  };
+
+  if (loading) {
+    return (
+      <Card title="Posts" subtitle="Loading posts...">
+        <div className="text-center py-12">
+          <div className="text-gray-500">Loading...</div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Create/Edit View
+  if (viewMode === 'create') {
+    return (
+      <Card
+        title={selectedPost ? "Edit Post" : "Create Post"}
+        subtitle={selectedPost ? "Update your post content" : "Share an update with your society members"}
+      >
+        <form onSubmit={handleSavePost} className="space-y-6">
+          <label className="block">
+            <div className="text-sm font-medium mb-2">Content *</div>
+            <textarea
+              value={postContent}
+              onChange={(e) => setPostContent(e.target.value)}
+              placeholder="What's happening in your society?"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-plum focus:ring-1 focus:ring-plum text-sm min-h-[200px]"
+              required
+            />
+            <div className="text-xs text-gray-500 mt-1">
+              {postContent.length}/4000 characters
+            </div>
+          </label>
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2 rounded-lg text-white font-medium transition-colors disabled:opacity-50"
+              style={{ backgroundColor: colors.plum }}
+            >
+              {isSubmitting ? "Saving..." : (selectedPost ? "Update Post" : "Create Post")}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-6 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </Card>
+    );
+  }
+
+  // List View
+  return (
+    <Card title="Posts" subtitle="Share updates and announcements with your society">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        {/* Search */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Search posts..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-plum focus:ring-1 focus:ring-plum"
+          />
+        </div>
+
+        {/* Create Button */}
+        <button
+          onClick={() => setViewMode('create')}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors"
+          style={{ backgroundColor: colors.plum }}
+        >
+          <Plus size={18} />
+          Create Post
+        </button>
+      </div>
+
+      {/* Results Count */}
+      <div className="mb-4 text-sm text-gray-600">
+        Showing {filteredPosts.length} of {posts.length} posts
+      </div>
+
+      {/* Empty State */}
+      {posts.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-2xl">
+          <FileText size={48} className="mx-auto text-gray-400 mb-4" />
+          <h3 className="font-semibold text-gray-900 mb-2">No posts yet</h3>
+          <p className="text-sm text-gray-600 mb-4">Create your first post to engage with your members</p>
+          <button
+            onClick={() => setViewMode('create')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium"
+            style={{ backgroundColor: colors.plum }}
+          >
+            <Plus size={18} />
+            Create Post
+          </button>
+        </div>
+      ) : (
+        /* Posts List */
+        <div className="space-y-4">
+          {filteredPosts.map((post) => (
+            <div
+              key={post.postId}
+              className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow"
+            >
+              {/* Post Header */}
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="font-medium text-gray-900">
+                    {post.author ? `${post.author.firstName} ${post.author.lastName}` : "Unknown Author"}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {new Date(post.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleEditPost(post)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Edit3 size={16} className="text-gray-600" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirmPost(post)}
+                    className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={16} className="text-red-600" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Post Content */}
+              <div className="text-gray-700 whitespace-pre-wrap mb-3">
+                {post.content}
+              </div>
+
+              {/* Post Stats */}
+              <div className="flex items-center gap-4 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-1 text-sm text-gray-600">
+                  <Heart size={16} />
+                  <span>{post.likeCount || 0} likes</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* No Search Results */}
+      {filteredPosts.length === 0 && posts.length > 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <div className="text-sm font-medium mb-2">No posts found</div>
+          <p className="text-xs">Try adjusting your search terms</p>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmPost && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <Trash2 size={20} className="text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Post</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this post? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmPost(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeletePost(deleteConfirmPost.postId)}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+//====== Posts Page (Detailed - For Future Use) ======//
+function PostsPageDetailed() {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [mockPosts] = useState([
     {
       id: 1,
       title: "Welcome to Tech Society!",
@@ -1795,6 +2815,7 @@ function PostsPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteConfirmPost, setDeleteConfirmPost] = useState(null);
 
   // Main Flow 1: Create Post Form State
   const [postForm, setPostForm] = useState({
@@ -1804,6 +2825,50 @@ function PostsPage() {
     type: 'announcement',
     status: 'draft'
   });
+
+  // Load posts from API on mount
+  useEffect(() => {
+    const loadPosts = async () => {
+      try {
+        setLoading(true);
+        const societyId = localStorage.getItem("societyId");
+
+        if (!societyId) {
+          console.error("No society ID found");
+          setPosts(mockPosts); // Fallback to mock data
+          return;
+        }
+
+        const response = await getSocietyPosts(societyId);
+        const postsData = Array.isArray(response) ? response : (response?.data || []);
+
+        // Transform backend data and merge with mock data structure
+        const transformedPosts = postsData.map(post => ({
+          id: post.postId || post.id,
+          title: "Post", // Backend doesn't have title, use placeholder
+          content: post.content,
+          author: post.author ? `${post.author.firstName} ${post.author.lastName}` : "Unknown",
+          createdAt: post.createdAt,
+          likes: post.likeCount || 0,
+          comments: [], // Backend doesn't return comments yet
+          views: 0, // Not available in backend
+          status: "published", // Static for now
+          type: "announcement", // Static for now
+          image: null, // Not available in backend
+          postId: post.postId // Keep original ID for API calls
+        }));
+
+        setPosts(transformedPosts);
+      } catch (err) {
+        console.error("Error loading posts:", err);
+        setPosts(mockPosts); // Fallback to mock data
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPosts();
+  }, [mockPosts]);
 
   // Filtered posts based on search and filters
   const filteredPosts = posts.filter(post => {
@@ -1856,53 +2921,80 @@ function PostsPage() {
   // Save post
   const handleSavePost = async (e) => {
     e.preventDefault();
-    
+
     const errors = validateContent();
     if (errors.length > 0) {
       alert(`Please fix the following errors:\n${errors.join('\n')}`);
       return;
     }
-    
+
     setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newPost = {
-      id: selectedPost ? selectedPost.id : Date.now(),
-      title: postForm.title,
-      content: postForm.content,
-      image: postForm.image,
-      author: "Admin User",
-      createdAt: selectedPost ? selectedPost.createdAt : new Date().toISOString(),
-      likes: selectedPost ? selectedPost.likes : 0,
-      comments: selectedPost ? selectedPost.comments : [],
-      views: selectedPost ? selectedPost.views : 0,
-      status: postForm.status,
-      type: postForm.type
-    };
-    
-    if (selectedPost) {
-      // Update existing post
-      setPosts(posts.map(post => post.id === selectedPost.id ? newPost : post));
-    } else {
-      // Add new post
-      setPosts([newPost, ...posts]);
+
+    try {
+      const societyId = localStorage.getItem("societyId");
+
+      if (!societyId) {
+        alert("Society ID not found. Please log in again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      let savedPost;
+
+      if (selectedPost && selectedPost.postId) {
+        // Update existing post - only send content (backend only supports content)
+        savedPost = await updatePost(selectedPost.postId, {
+          content: postForm.content
+        });
+      } else {
+        // Create new post
+        savedPost = await createPost(societyId, {
+          content: postForm.content
+        });
+      }
+
+      // Transform the response
+      const transformedPost = {
+        id: savedPost.postId,
+        title: postForm.title || "Post", // Keep form title for UI
+        content: savedPost.content,
+        author: savedPost.author ? `${savedPost.author.firstName} ${savedPost.author.lastName}` : "Admin User",
+        createdAt: savedPost.createdAt,
+        likes: savedPost.likeCount || 0,
+        comments: selectedPost ? selectedPost.comments : [],
+        views: selectedPost ? selectedPost.views : 0,
+        status: postForm.status,
+        type: postForm.type,
+        image: postForm.image,
+        postId: savedPost.postId
+      };
+
+      if (selectedPost) {
+        // Update existing post in list
+        setPosts(posts.map(post => post.id === selectedPost.id ? transformedPost : post));
+      } else {
+        // Add new post to list
+        setPosts([transformedPost, ...posts]);
+      }
+
+      // Reset form and return to list view
+      setPostForm({
+        title: '',
+        content: '',
+        image: null,
+        type: 'announcement',
+        status: 'draft'
+      });
+      setSelectedPost(null);
+      setViewMode('list');
+
+      console.log(`Post ${selectedPost ? 'updated' : 'created'} successfully`);
+    } catch (error) {
+      console.error("Error saving post:", error);
+      alert("Failed to save post. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    // Reset form and return to list view
-    setPostForm({
-      title: '',
-      content: '',
-      image: null,
-      type: 'announcement',
-      status: 'draft'
-    });
-    setSelectedPost(null);
-    setViewMode('list');
-    setIsSubmitting(false);
-    
-    console.log(`Post ${selectedPost ? 'updated' : 'created'} - Audit log recorded`);
   };
 
   // Edit post
@@ -1919,10 +3011,19 @@ function PostsPage() {
   };
 
   // Delete post
-  const handleDeletePost = (postId) => {
-    if (window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+  const handleDeletePost = async (postId) => {
+    try {
+      // Find the post to get the backend postId
+      const post = posts.find(p => p.id === postId);
+      const backendPostId = post?.postId || postId;
+
+      await deletePost(backendPostId);
       setPosts(posts.filter(post => post.id !== postId));
-      console.log(`Post ${postId} deleted - Audit log recorded`);
+      setDeleteConfirmPost(null);
+      console.log(`Post ${postId} deleted successfully`);
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      alert("Failed to delete post. Please try again.");
     }
   };
 
@@ -2226,9 +3327,20 @@ function PostsPage() {
   // Main Posts List View
   return (
     <Card
-      title="Posts"
+      title="Posts (Advanced)"
       subtitle="Create and manage society posts, announcements, and updates"
     >
+      {/* Coming Soon Banner */}
+      <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
+        <div className="flex items-center gap-2">
+          <div className="text-yellow-800 font-semibold">🚧 Coming Soon</div>
+        </div>
+        <div className="text-sm text-yellow-700 mt-1">
+          Advanced features like titles, images, status filters, categories, and comments are under development.
+          Use the basic "Posts" page for creating simple text posts.
+        </div>
+      </div>
+
       {/* Search and Actions Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         {/* Search Bar */}
@@ -2381,7 +3493,7 @@ function PostsPage() {
                     Comments
                   </button>
                   <button
-                    onClick={() => handleDeletePost(post.id)}
+                    onClick={() => setDeleteConfirmPost(post)}
                     className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-xs"
                   >
                     <Trash2 size={12} />
@@ -2422,6 +3534,37 @@ function PostsPage() {
         <div className="text-center py-12 text-gray-500">
           <div className="text-sm font-medium mb-2">No posts found</div>
           <p className="text-xs">Try adjusting your search terms or filters</p>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmPost && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <Trash2 size={20} className="text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Post</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this post? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmPost(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeletePost(deleteConfirmPost.id)}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </Card>
@@ -2531,10 +3674,10 @@ function RequestsPage() {
     if (selectedRequests.length === 0) return;
 
     const updatedRequests = requests.map(req =>
-      selectedRequests.includes(req.id) ? { 
-        ...req, 
-        status: action, 
-        processedAt: new Date().toISOString(), 
+      selectedRequests.includes(req.id) ? {
+        ...req,
+        status: action,
+        processedAt: new Date().toISOString(),
         adminNote: actionNote,
         processedBy: "Admin"
       } : req
@@ -2559,10 +3702,10 @@ function RequestsPage() {
     if (!request) return;
 
     const updatedRequests = requests.map(req =>
-      req.id === requestId ? { 
-        ...req, 
-        status: action, 
-        processedAt: new Date().toISOString(), 
+      req.id === requestId ? {
+        ...req,
+        status: action,
+        processedAt: new Date().toISOString(),
         adminNote: note,
         processedBy: "Admin"
       } : req
@@ -2605,10 +3748,10 @@ function RequestsPage() {
   // Notification system
   const sendNotification = async (request, action, note) => {
     const notificationId = `${request.id}-${Date.now()}`;
-    
+
     try {
       setNotificationStatus(prev => ({ ...prev, [notificationId]: 'sending' }));
-      
+
       const notificationData = {
         student: {
           name: request.name,
@@ -2620,11 +3763,11 @@ function RequestsPage() {
         society: "AI & Robotics Society",
         timestamp: new Date().toISOString()
       };
-      
+
       await mockSendNotification(notificationData);
-      
+
       setNotificationStatus(prev => ({ ...prev, [notificationId]: 'success' }));
-      
+
       setTimeout(() => {
         setNotificationStatus(prev => {
           const newStatus = { ...prev };
@@ -2632,10 +3775,10 @@ function RequestsPage() {
           return newStatus;
         });
       }, 3000);
-      
+
     } catch (error) {
       setNotificationStatus(prev => ({ ...prev, [notificationId]: 'failed' }));
-      
+
       setTimeout(() => {
         sendNotification(request, action, note);
       }, 5000);
@@ -2664,6 +3807,16 @@ function RequestsPage() {
       title="Join Requests"
       subtitle="Review and manage membership applications"
     >
+      {/* Coming Soon Banner */}
+      <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
+        <div className="flex items-center gap-2">
+          <div className="text-yellow-800 font-semibold">🚧 Coming Soon</div>
+        </div>
+        <div className="text-sm text-yellow-700 mt-1">
+          Backend integration for join requests is under development. The page currently shows demo data for testing the interface.
+        </div>
+      </div>
+
       {/* Search and Actions Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         {/* Search Bar */}
@@ -2925,9 +4078,9 @@ function SettingsPage() {
   const [societyLogo, setSocietyLogo] = useState(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [formData, setFormData] = useState({
-    societyName: "AI & Robotics Society",
-    category: "Technology",
-    description: "We host weekly workshops on ML, robotics, and hack nights.",
+    societyName: "",
+    category: "",
+    description: "",
     adminName: "John",
     adminSurname: "Doe",
     email: "admin@airobotics.com",
@@ -2937,6 +4090,45 @@ function SettingsPage() {
   const [validationErrors, setValidationErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [societyId, setSocietyId] = useState(null);
+
+  // Load society data on mount
+  useEffect(() => {
+    const loadSocietyData = async () => {
+      try {
+        setLoading(true);
+        // TODO: Get societyId from auth context or URL params
+        // For now, using hardcoded ID from seeded data
+        const testSocietyId = "1001"; // NWU Tech Society from seed
+        setSocietyId(testSocietyId);
+
+        const societyData = await getSocietyDetails(testSocietyId);
+
+        setFormData(prev => ({
+          ...prev,
+          societyName: societyData.name || "",
+          category: societyData.category || "",
+          description: societyData.description || ""
+        }));
+
+        // Set logo preview if exists
+        if (societyData.logoUrl) {
+          setLogoPreview(societyData.logoUrl);
+        }
+
+      } catch (error) {
+        console.error("Error loading society data:", error);
+        setValidationErrors({
+          load: "Failed to load society data. Please refresh the page."
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSocietyData();
+  }, []);
 
   // Mock function to check admin authorization (Alternative Flow 2b)
   const checkAdminAuthorization = () => {
@@ -3054,6 +4246,11 @@ function SettingsPage() {
       return;
     }
 
+    if (!societyId) {
+      setValidationErrors({ submit: "Society ID not found. Please refresh the page." });
+      return;
+    }
+
     const errors = validateForm(tab);
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -3064,26 +4261,39 @@ function SettingsPage() {
     setSaveStatus("saving");
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const updateData = {
-        ...formData,
-        logo: societyLogo,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: "Society Admin"
-      };
+      if (tab === "Profile") {
+        // Update society profile
+        const updateData = {
+          name: formData.societyName,
+          category: formData.category,
+          description: formData.description
+        };
 
-      console.log("Saving society profile:", updateData);
-      
+        // TODO: Handle logo upload separately when backend endpoint is ready
+        // For now, logo upload is deferred to Phase 4
+
+        await updateSociety(societyId, updateData);
+
+        console.log("Society profile updated successfully");
+      } else if (tab === "Security") {
+        // TODO: Implement admin user profile update
+        // This requires a separate user profile endpoint
+        console.log("Security updates not yet implemented");
+        throw new Error("Security updates are not yet available. This feature is coming soon.");
+      }
+
       setSaveStatus("success");
-      
+
       setTimeout(() => {
         setSaveStatus("");
       }, 3000);
 
     } catch (error) {
+      console.error("Error saving changes:", error);
       setSaveStatus("error");
-      setValidationErrors({ submit: "Failed to save changes. Please try again." });
+      setValidationErrors({
+        submit: error.message || "Failed to save changes. Please try again."
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -3105,11 +4315,39 @@ function SettingsPage() {
     setSaveStatus("");
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <Card
+        title="Society Account Management"
+        subtitle="Update society profile, security settings, and preferences"
+      >
+        <div className="space-y-4 animate-pulse">
+          <div className="h-12 rounded-2xl" style={{ background: colors.paper }}></div>
+          <div className="h-32 rounded-2xl" style={{ background: colors.paper }}></div>
+          <div className="h-12 rounded-2xl" style={{ background: colors.paper }}></div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card 
-      title="Society Account Management" 
+    <Card
+      title="Society Account Management"
       subtitle="Update society profile, security settings, and preferences"
     >
+      {/* Load Error */}
+      {validationErrors.load && (
+        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200">
+          <div className="flex items-center gap-2 text-red-700">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium text-sm">{validationErrors.load}</span>
+          </div>
+        </div>
+      )}
+
       {/* Authorization Error */}
       {validationErrors.authorization && (
         <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200">
@@ -4247,6 +5485,7 @@ export default function SocietyAdminDashboard() {
       {page === "members" && <MembersPage />}
       {page === "events" && <EventsPage />}
       {page === "posts" && <PostsPage />}
+      {page === "posts-detailed" && <PostsPageDetailed />}
       {page === "requests" && <RequestsPage />}
        {page === "messages" && <NotificationSender />}
       {page === "settings" && <SettingsPage />}
