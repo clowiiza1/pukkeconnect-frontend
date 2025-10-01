@@ -1,9 +1,8 @@
-import React, { useState } from "react"; 
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
-  Flag,
   ClipboardList,
   Building2,
   Search,
@@ -12,6 +11,12 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import SocietiesManager from "./SocietiesManager.jsx";
+
+import ReportsPanel from "./ReportsPanel.jsx";
+
+import UsersManager from "./UsersManager.jsx";
 
 // Brand palette
 const colors = {
@@ -21,6 +26,8 @@ const colors = {
   plum: "#6a509b",
 };
 
+const campusOptions = ["Mafikeng", "Potchefstroom", "Vanderbijlpark"];
+
 // Shell layout reused from student dashboard but adapted for admin
 function Shell({ page, setPage, children }) {
   const [open, setOpen] = useState(true);
@@ -28,7 +35,6 @@ function Shell({ page, setPage, children }) {
     { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
     { key: "societies", label: "Societies", icon: <Building2 size={18} /> },
     { key: "reports", label: "Reports", icon: <ClipboardList size={18} /> },
-    { key: "moderation", label: "Moderation", icon: <Flag size={18} /> },
     { key: "users", label: "Users", icon: <Users size={18} /> },
   ];
 
@@ -51,17 +57,20 @@ function Shell({ page, setPage, children }) {
           >
             <Menu />
           </button>
-          <div className="flex items-center gap-2">
+          <Link
+            to="/"
+            className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-lilac rounded-xl"
+            aria-label="Go to PukkeConnect home"
+          >
             <img
               src="src/assets/icon1.png"
               alt="PukkeConnect Logo"
               className="size-10 rounded-xl object-contain flex-shrink-0"
             />
-            {/* REMOVED 'Admin' from the title */}
-            <div className="font-semibold hidden md:block" style={{ color: colors.plum }}>
+            <span className="font-semibold hidden md:block" style={{ color: colors.plum }}>
               PukkeConnect
-            </div>
-          </div>
+            </span>
+          </Link>
           <div className="ml-auto flex items-center gap-2 w-full md:w-auto">
             <div className="relative flex-1 md:flex-none md:w-[360px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60" size={18} />
@@ -163,22 +172,11 @@ const pending = [
   { id: 1, name: "Campus Climbers", uni: "NWU", date: "2025-09-10", description: "Outdoor climbing and safety group." },
   { id: 2, name: "Quantum Circle", uni: "NWU", date: "2025-09-12", description: "Quantum computing study and research group." },
 ];
-const flagged = [
-  { id: 1, type: "Post", title: "Inappropriate meme", by: "student123" },
-  { id: 2, type: "Comment", title: "Spam on Tech Expo", by: "bot_user" },
-];
 const activity = [
   "Admin Jana approved Society 'Debate Union' — 2h ago",
   "3 users reported a post in 'Photography Circle' — Yesterday",
   "New society application: 'Campus Climbers' — 2025-09-10",
 ];
-const mockUsers = [
-  { id: 101, name: "Jessica Smith", email: "jess.smith@nwu.ac.za", status: "Active", joined: "2024-01-15", reports: 0 },
-  { id: 102, name: "Sipho Dlamini", email: "sipho.d@nwu.ac.za", status: "Active", joined: "2023-11-20", reports: 3 },
-  { id: 103, name: "Emily Clark", email: "eclark@nwu.ac.za", status: "Suspended", joined: "2024-03-01", reports: 12 },
-  { id: 104, name: "David Johnson", email: "djohnson@nwu.ac.za", status: "Active", joined: "2024-05-10", reports: 1 },
-];
-
 /**
  * Reusable component for displaying the list of pending society applications.
  */
@@ -318,10 +316,8 @@ function SocietiesPage() {
   return (
     <div className="space-y-6">
       <PendingSocietiesList />
-      <Card title="Approved Societies List" subtitle="Search and manage all active societies.">
-        <p className="text-sm opacity-80">
-          This section will contain the complete searchable table for all 128 approved societies.
-        </p>
+      <Card title="Approved Societies" subtitle="Search and manage every approved society.">
+        <SocietiesManager campusOptions={campusOptions} />
       </Card>
     </div>
   );
@@ -329,68 +325,22 @@ function SocietiesPage() {
 
 function ReportsPage() {
   return (
-    <Card title="Reports Summary" subtitle="Recent moderation activity">
-      <ul className="text-sm opacity-80 space-y-2">
-        <li>New reports in last 24h: 5</li>
-
-        <li>Pending moderation: {flagged.length}</li>
-      </ul>
-      <p className="mt-4 text-xs opacity-60">
-        This view provides an overview. Navigate to the Moderation tab for queue management.
-      </p>
-    </Card>
-  );
-}
-
-function ModerationPage() {
-  return (
-    <Card title="Moderation Queue" subtitle={`Review and act on ${flagged.length} flagged content items.`}>
-      <ul className="space-y-2">
-        {flagged.map((f) => (
-          <li key={f.id} className="p-3 rounded-2xl" style={{ background: colors.paper }}>
-            <div className="font-medium">{f.title}</div>
-            <div className="text-xs opacity-70">{f.type} reported by {f.by}</div>
-            <div className="mt-2 flex gap-2">
-              <button className="rounded-xl px-3 py-1 text-sm" style={{ background: colors.plum, color: "white" }}>Resolve</button>
-              <button className="rounded-xl px-3 py-1 text-sm" style={{ background: colors.mist }}>View Original</button>
-            </div>
-          </li>
-        ))}
-      </ul>
+    <Card
+      title="Reports"
+      subtitle="Review incoming reports, track status updates, and export snapshots."
+    >
+      <ReportsPanel />
     </Card>
   );
 }
 
 function UsersPage() {
   return (
-    <Card title="User Management" subtitle={`Viewing ${mockUsers.length} recent users. Use the search bar for full list lookup.`}>
-      <div className="space-y-3">
-        {mockUsers.map((user) => (
-          <div key={user.id} className="p-3 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between" style={{ background: colors.paper }}>
-            <div className="flex-1 min-w-0 mb-2 md:mb-0">
-              <div className="font-medium truncate" style={{ color: colors.plum }}>{user.name}</div>
-              <div className="text-xs opacity-70 truncate">{user.email} | Joined: {user.joined}</div>
-              <div className={`text-xs font-semibold mt-1 ${user.status === 'Suspended' ? 'text-red-600' : 'text-green-600'}`}>
-                {user.status} ({user.reports} reports)
-              </div>
-            </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <button className="rounded-xl px-3 py-1 text-sm" style={{ background: colors.lilac, color: "white" }}>
-                View Profile
-              </button>
-              <button 
-                className={`rounded-xl px-3 py-1 text-sm transition`}
-                style={{ 
-                  background: user.status === 'Suspended' ? colors.plum : colors.mist, 
-                  color: user.status === 'Suspended' ? 'white' : 'black' 
-                }}
-              >
-                {user.status === 'Suspended' ? 'Unsuspend' : 'Suspend'}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+    <Card
+      title="User Management"
+      subtitle="Browse all platform users, update their details, or remove access."
+    >
+      <UsersManager campusOptions={campusOptions} />
     </Card>
   );
 }
@@ -405,7 +355,6 @@ export default function PlatformAdminDashboard() {
       {page === "dashboard" && <DashboardPage />}
       {page === "societies" && <SocietiesPage />}
       {page === "reports" && <ReportsPage />}
-      {page === "moderation" && <ModerationPage />}
       {page === "users" && <UsersPage />}
     </Shell>
   );

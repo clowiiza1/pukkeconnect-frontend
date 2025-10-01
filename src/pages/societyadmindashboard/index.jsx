@@ -1036,7 +1036,7 @@ function MembersPage() {
           </span>
           <input
             type="text"
-            placeholder="Search by name, role, join date, status..."
+            placeholder="Search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-xl pl-9 pr-3 py-2 outline-none placeholder:text-sm focus:ring-1 focus:ring-lilac text-sm"
@@ -3826,7 +3826,7 @@ function RequestsPage() {
           </span>
           <input
             type="text"
-            placeholder="Search by name, email, student ID..."
+            placeholder="Search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-xl pl-9 pr-3 py-2 outline-none placeholder:text-sm focus:ring-1 focus:ring-lilac text-sm"

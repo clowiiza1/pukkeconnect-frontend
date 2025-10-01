@@ -1815,7 +1815,7 @@ function ExplorePage({ societies, onJoin, onLeave }) {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by name…"
+              placeholder="Search"
               className="rounded-2xl px-4 py-2 pl-9 outline-none focus:ring-2 focus:ring-lilac"
               style={{ background: colors.mist }}
             />
@@ -2035,7 +2035,7 @@ function SocietyDetailsPage({ loading, societies = [], onLeave, error }) {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by name…"
+              placeholder="Search"
               className="w-full rounded-2xl px-4 py-2 pl-9 outline-none focus:ring-2 focus:ring-lilac"
               style={{ background: colors.mist }}
             />
