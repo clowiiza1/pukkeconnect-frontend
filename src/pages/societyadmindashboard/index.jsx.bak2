@@ -383,154 +383,27 @@ function Shell({ page, setPage, children }) {
 }
 
 // Overiew Pages
-function OverviewPage({ setPage }) {
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalMembers: 0,
-    pendingRequests: 0,
-    upcomingEvents: 0,
-    totalPosts: 0
-  });
-  const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [recentPosts, setRecentPosts] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
-
-  useEffect(() => {
-    loadOverviewData();
-  }, []);
-
-  const loadOverviewData = async () => {
-    try {
-      setLoading(true);
-
-      const society = await getMySociety();
-
-      const [membersResponse, eventsResponse, postsResponse] = await Promise.all([
-        getSocietyMembers(society.societyId),
-        getSocietyEvents(society.societyId, { limit: 5 }),
-        getSocietyPosts(society.societyId, { limit: 5 })
-      ]);
-
-      // Extract data from responses
-      const members = Array.isArray(membersResponse) ? membersResponse : (membersResponse?.data || []);
-      const events = Array.isArray(eventsResponse) ? eventsResponse : (eventsResponse?.data || []);
-      const posts = Array.isArray(postsResponse) ? postsResponse : (postsResponse?.data || []);
-
-      // Calculate stats
-      const pendingCount = members.filter(m => m.status === 'pending').length;
-      const now = new Date();
-      const upcoming = events.filter(e => new Date(e.startsAt) > now);
-
-      setStats({
-        totalMembers: members.length,
-        pendingRequests: pendingCount,
-        upcomingEvents: upcoming.length,
-        totalPosts: posts.length
-      });
-
-      setUpcomingEvents(upcoming.slice(0, 3));
-      setRecentPosts(posts.slice(0, 3));
-
-      // Create activity feed from recent events and posts
-      // First sort all events and posts by date to get the most recent
-      const sortedEvents = [...events]
-        .filter(e => e.createdAt) // Only include events with createdAt timestamp
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-      const sortedPosts = [...posts].sort((a, b) =>
-        new Date(b.createdAt) - new Date(a.createdAt)
-      );
-
-      const activity = [
-        ...sortedEvents.slice(0, 2).map(e => ({
-          id: `event-${e.eventId}`,
-          text: `Event created: ${e.title}`,
-          timestamp: e.createdAt,
-          time: formatTimeAgo(e.createdAt)
-        })),
-        ...sortedPosts.slice(0, 2).map(p => ({
-          id: `post-${p.postId}`,
-          text: `New post published`,
-          timestamp: p.createdAt,
-          time: formatTimeAgo(p.createdAt)
-        }))
-      ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 4);
-
-      setRecentActivity(activity);
-
-    } catch (error) {
-      console.error('Error loading overview data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatTimeAgo = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = Math.abs(now - date); // Use absolute value to remove negative
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
-
-  const formatEventDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const formatEventTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  if (loading) {
-    return <Card title="Overview"><div className="text-center py-8">Loading...</div></Card>;
-  }
-
+function OverviewPage() {
   return (
     <>
       <Card title="Overview" subtitle="Quick stats for your society.">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <button
-            onClick={() => setPage('members')}
-            className="rounded-2xl p-4 text-left hover:opacity-90 transition-opacity cursor-pointer"
-            style={{ background: colors.lilac }}
-          >
+          <div className="rounded-2xl p-4" style={{ background: colors.lilac }}>
             <div className="text-white/90 text-sm">Members</div>
-            <div className="text-3xl font-bold text-white">{stats.totalMembers}</div>
-          </button>
-          <button
-            onClick={() => setPage('members')}
-            className="rounded-2xl p-4 text-left hover:opacity-90 transition-opacity cursor-pointer"
-            style={{ background: colors.plum }}
-          >
+            <div className="text-3xl font-bold text-white">{mockStats.members}</div>
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: colors.plum }}>
             <div className="text-white/90 text-sm">Pending Requests</div>
-            <div className="text-3xl font-bold text-white">{stats.pendingRequests}</div>
-          </button>
-          <button
-            onClick={() => setPage('events')}
-            className="rounded-2xl p-4 text-left hover:opacity-90 transition-opacity cursor-pointer"
-            style={{ background: colors.mist }}
-          >
+            <div className="text-3xl font-bold text-white">{mockStats.pending}</div>
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: colors.mist }}>
             <div className="text-sm">Upcoming Events</div>
-            <div className="text-3xl font-bold">{stats.upcomingEvents}</div>
-          </button>
-          <button
-            onClick={() => setPage('posts')}
-            className="rounded-2xl p-4 text-left hover:opacity-90 transition-opacity cursor-pointer"
-            style={{ background: colors.paper }}
-          >
+            <div className="text-3xl font-bold">{mockStats.events}</div>
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: colors.paper }}>
             <div className="text-sm">Posts</div>
-            <div className="text-3xl font-bold">{stats.totalPosts}</div>
-          </button>
+            <div className="text-3xl font-bold">{mockStats.posts}</div>
+          </div>
         </div>
       </Card>
 
@@ -539,96 +412,62 @@ function OverviewPage({ setPage }) {
           title="Upcoming events"
           subtitle="Manage RSVPs and details"
           action={
-            <button
-              onClick={() => setPage('events')}
-              className="text-sm rounded-xl px-3 py-1 text-white hover:opacity-90 transition-opacity"
-              style={{ background: colors.plum }}
-            >
+            <button className="text-sm rounded-xl px-3 py-1 text-white hover:opacity-90 transition-opacity" style={{ background: colors.plum }}>
               <Plus size={16} className="inline mr-1" /> New event
             </button>
           }
         >
-          {upcomingEvents.length === 0 ? (
-            <div className="text-center py-8 text-sm opacity-70">No upcoming events</div>
-          ) : (
-            <div className="space-y-3">
-              {upcomingEvents.map((e) => (
-                <div key={e.eventId} className="p-3 rounded-2xl flex items-center justify-between gap-3" style={{ background: colors.paper }}>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="rounded-xl px-3 py-2 text-sm font-semibold text-white flex-shrink-0" style={{ background: colors.lilac }}>
-                      {formatEventDate(e.startsAt)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{e.title}</div>
-                      <div className="text-xs opacity-70">{formatEventTime(e.startsAt)} • {e.location || 'TBA'}</div>
-                    </div>
+          <div className="space-y-3">
+            {mockEvents.map((e) => (
+              <div key={e.id} className="p-3 rounded-2xl flex items-center justify-between gap-3" style={{ background: colors.paper }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="rounded-xl px-3 py-2 text-sm font-semibold text-white flex-shrink-0" style={{ background: colors.lilac }}>
+                    {e.date}
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Pill>{e.rsvps || 0} going</Pill>
-                    <button
-                      onClick={() => setPage('events')}
-                      className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors"
-                      style={{ background: colors.mist }}
-                    >
-                      View
-                    </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{e.title}</div>
+                    <div className="text-xs opacity-70">{e.time} • {e.location}</div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card
-          title="Recent posts"
-          subtitle="Latest updates"
-          action={
-            <button
-              onClick={() => setPage('posts')}
-              className="text-sm rounded-xl px-3 py-1 text-white hover:opacity-90 transition-opacity"
-              style={{ background: colors.plum }}
-            >
-              <Plus size={16} className="inline mr-1" /> New post
-            </button>
-          }
-        >
-          {recentPosts.length === 0 ? (
-            <div className="text-center py-8 text-sm opacity-70">No posts yet</div>
-          ) : (
-            <div className="space-y-3">
-              {recentPosts.map((p) => (
-                <div key={p.postId} className="p-3 rounded-2xl flex items-center justify-between gap-3" style={{ background: colors.paper }}>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{p.content.substring(0, 50)}...</div>
-                    <div className="text-xs opacity-70">{p.likes || 0} likes • {formatTimeAgo(p.createdAt)}</div>
-                  </div>
-                  <button
-                    onClick={() => setPage('posts')}
-                    className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors flex items-center gap-1 flex-shrink-0"
-                    style={{ background: colors.mist }}
-                  >
-                    View
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Pill>{e.rsvp} going</Pill>
+                  <button className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors" style={{ background: colors.mist }}>
+                    Edit
                   </button>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Recent posts" subtitle="Drafts, scheduled, and published">
+          <div className="space-y-3">
+            {mockPosts.map((p) => (
+              <div key={p.id} className="p-3 rounded-2xl flex items-center justify-between gap-3" style={{ background: colors.paper }}>
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{p.title}</div>
+                  <div className="text-xs opacity-70">Status: {p.status}</div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors flex items-center gap-1" style={{ background: colors.mist }}><Edit3 size={14} /> Edit</button>
+                  <button className="rounded-xl px-3 py-1 text-sm text-white hover:opacity-90 transition-opacity" style={{ background: colors.plum }}>Publish</button>
+                  <button className="rounded-xl px-3 py-1 text-sm hover:bg-mist/80 transition-colors flex items-center gap-1" style={{ background: colors.mist }}><Trash2 size={14} /> Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
 
       <Card title="Recent activity" subtitle="Latest actions across your society">
-        {recentActivity.length === 0 ? (
-          <div className="text-center py-8 text-sm opacity-70">No recent activity</div>
-        ) : (
-          <ul className="space-y-2">
-            {recentActivity.map((a) => (
-              <li key={a.id} className="p-3 rounded-2xl flex items-center justify-between" style={{ background: colors.paper }}>
-                <span className="text-sm">{a.text}</span>
-                <span className="text-xs opacity-60">{a.time}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="space-y-2">
+          {mockActivity.map((a) => (
+            <li key={a.id} className="p-3 rounded-2xl flex items-center justify-between" style={{ background: colors.paper }}>
+              <span className="text-sm">{a.text}</span>
+              <span className="text-xs opacity-60">{a.time}</span>
+            </li>
+          ))}
+        </ul>
       </Card>
     </>
   );
@@ -1157,7 +996,7 @@ function MembersPage() {
           </span>
           <input
             type="text"
-            placeholder="Search"
+            placeholder="Search by name, role, join date, status..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-xl pl-9 pr-3 py-2 outline-none placeholder:text-sm focus:ring-1 focus:ring-lilac text-sm"
@@ -3947,7 +3786,7 @@ function RequestsPage() {
           </span>
           <input
             type="text"
-            placeholder="Search"
+            placeholder="Search by name, email, student ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-xl pl-9 pr-3 py-2 outline-none placeholder:text-sm focus:ring-1 focus:ring-lilac text-sm"
@@ -5347,21 +5186,11 @@ function MetricsPage() {
       setSocietyId(society.societyId);
 
       // Fetch all data in parallel
-      const [membersResponse, eventsResponse, postsResponse] = await Promise.all([
+      const [members, events, posts] = await Promise.all([
         getSocietyMembers(society.societyId),
         getSocietyEvents(society.societyId),
         getSocietyPosts(society.societyId)
       ]);
-
-      // Extract data from responses
-      // Members returns array directly, events/posts return {data, page, limit, total}
-      const members = Array.isArray(membersResponse) ? membersResponse : (membersResponse?.data || []);
-      const events = Array.isArray(eventsResponse) ? eventsResponse : (eventsResponse?.data || []);
-      const posts = Array.isArray(postsResponse) ? postsResponse : (postsResponse?.data || []);
-
-      console.log('Members data:', members);
-      console.log('Events data:', events);
-      console.log('Posts data:', posts);
 
       // Calculate statistics
       const activeCount = members.filter(m => m.status === 'active').length;
@@ -5413,39 +5242,10 @@ function MetricsPage() {
         .slice(0, 5);
       setTopEvents(sortedEvents);
 
-      // Membership trend - calculate actual growth from join_date
-      const last6Months = [];
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-      // Generate last 6 months
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        last6Months.push({
-          label: monthNames[date.getMonth()],
-          year: date.getFullYear(),
-          month: date.getMonth(),
-          count: 0
-        });
-      }
-
-      // Count cumulative members up to end of each month
-      members.forEach(member => {
-        const joinDate = new Date(member.joinDate);
-
-        last6Months.forEach(monthData => {
-          const monthEndDate = new Date(monthData.year, monthData.month + 1, 0); // Last day of month
-
-          // If member joined before or during this month, count them
-          if (joinDate <= monthEndDate) {
-            monthData.count++;
-          }
-        });
-      });
-
-      setMembershipTrend({
-        labels: last6Months.map(m => m.label),
-        values: last6Months.map(m => m.count)
-      });
+      // Membership trend - mock data for now (in real app, track membership over time)
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+      const values = [85, 92, 105, 118, 134, members.length];
+      setMembershipTrend({ labels: months, values });
 
     } catch (error) {
       console.error('Error loading metrics:', error);
@@ -5642,7 +5442,7 @@ export default function SocietyAdminDashboard() {
   const [page, setPage] = useState("overview");
   return (
     <Shell page={page} setPage={setPage}>
-      {page === "overview" && <OverviewPage setPage={setPage} />}
+      {page === "overview" && <OverviewPage />}
       {page === "members" && <MembersPage />}
       {page === "events" && <EventsPage />}
       {page === "posts" && <PostsPage />}
@@ -5651,6 +5451,9 @@ export default function SocietyAdminDashboard() {
        {page === "messages" && <NotificationSender />}
       {page === "settings" && <SettingsPage />}
       {page === "metrics" && <MetricsPage />}
+    </Shell>
+  );
+}
     </Shell>
   );
 }
