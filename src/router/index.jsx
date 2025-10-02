@@ -1,10 +1,10 @@
-
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import PublicLayout from "@/components/layout/PublicLayout";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
 import Landing from "@/pages/public/Landing";
 import NotFound from "@/pages/public/NotFound";
+import ContactPage from "@/pages/contactpage/ContactPage.jsx"; // <-- imported
 
 import DashboardPage from "@/pages/studentdashboard/index.jsx";
 import SocietyAdminDashboard from "@/pages/societyadmindashboard/index.jsx";
@@ -18,6 +18,7 @@ const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { path: "/", element: <Landing /> },
+      { path: "/contact", element: <ContactPage /> }, // <-- Contact Page route
       { path: "*", element: <NotFound /> },
     ],
   },
