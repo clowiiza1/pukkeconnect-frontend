@@ -95,9 +95,17 @@ export default function LoginModal({ open, onClose, goSignup, goForgot }) {
 
       const tokenValue = res?.token ?? res?.data?.token ?? user?.token ?? res?.user?.token;
 
+      // Determine destination before login
+      const resolvedRole = normalizeRole(userForContext?.role ?? rawRole);
+      const defaultDestination = resolvedRole === "student"
+        ? "/"
+        : roleToDashboardPath(resolvedRole);
+      const destination = userForContext?.redirect ?? res?.redirect ?? defaultDestination ?? "/";
+
+      // Update login state
       try {
         flushSync(() => {
-        login(userForContext, tokenValue);
+          login(userForContext, tokenValue);
         });
       } catch {
         try {
@@ -107,20 +115,19 @@ export default function LoginModal({ open, onClose, goSignup, goForgot }) {
         }
       }
 
-      const resolvedRole = normalizeRole(userForContext?.role ?? rawRole);
-      const defaultDestination = resolvedRole === "student"
-        ? "/"
-        : roleToDashboardPath(resolvedRole);
-      const destination = userForContext?.redirect ?? res?.redirect ?? defaultDestination ?? "/";
-
       setUserRole(resolvedRole ?? "");
       setLoginStatus("success");
       setShowSuccess(true);
 
+      // Wait longer for context to propagate, especially for admin roles
+      const delay = resolvedRole === "student" ? 1500 : 2000;
       setTimeout(() => {
-        navigate(destination, { replace: true });
         handleClose();
-      }, 1500);
+        // Use setTimeout to ensure navigation happens after modal closes
+        setTimeout(() => {
+          navigate(destination, { replace: true });
+        }, 100);
+      }, delay);
     } catch (err) {
       setLoginStatus("error");
       // err could be Error or an object from Axios with response.data.message
@@ -211,7 +218,9 @@ export default function LoginModal({ open, onClose, goSignup, goForgot }) {
                         Successfully Logged In!
                       </span>
                       <p className="text-emerald-700 mt-1">
-                        Redirecting to {getRoleDisplayName(userRole)} dashboard...
+                        {userRole === "student"
+                          ? "Welcome back!"
+                          : `Redirecting to ${getRoleDisplayName(userRole)} dashboard...`}
                       </p>
                     </div>
                   </>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   User,
@@ -15,6 +15,8 @@ import {
   ChevronRight,
   Menu,
   Inbox,
+  Home,
+  LogOut,
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
@@ -152,8 +154,9 @@ function formatMembershipStatusLabel(status) {
 // Simple layout shell with responsive sidebar
 function Shell({ page, setPage, children, student, studentLoading }) {
   const [open, setOpen] = useState(true);
+  const { logout } = useAuth();
   const nav = [
-    { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
+    { key: "dashboard", label: "Overview", icon: <LayoutDashboard size={18} /> },
     { key: "profile", label: "My Profile", icon: <User size={18} /> },
     { key: "explore", label: "Explore", icon: <Compass size={18} /> },
     { key: "details", label: "Societies", icon: <Sparkles size={18} /> },
@@ -211,6 +214,29 @@ function Shell({ page, setPage, children, student, studentLoading }) {
               PukkeConnect
             </span>
           </Link>
+          <div className="ml-auto flex items-center gap-2">
+            <Link
+              to="/"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-opacity-20"
+              style={{ background: colors.mist }}
+            >
+              <Home size={18} style={{ color: colors.plum }} />
+              <span className="text-sm font-medium hidden md:block" style={{ color: colors.plum }}>
+                Home
+              </span>
+            </Link>
+            <button
+              onClick={() => {
+                logout();
+                window.location.href = '/';
+              }}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-opacity-80"
+              style={{ background: colors.plum, color: 'white' }}
+            >
+              <LogOut size={18} />
+              <span className="text-sm font-medium hidden md:block">Logout</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2752,18 +2778,18 @@ function ExploreSocietyModal({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div className="relative w-full max-w-3xl max-h-[90vh] rounded-3xl bg-white shadow-2xl flex flex-col">
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 text-2xl text-dark/60 hover:text-plum"
+          className="absolute right-4 top-4 z-10 text-2xl text-dark/60 hover:text-plum"
           aria-label="Close"
         >
           ×
         </button>
 
         <div
-          className="h-40 w-full"
+          className="h-40 w-full flex-shrink-0 rounded-t-3xl"
           style={{
             background: `linear-gradient(135deg, ${colors.plum} 0%, ${colors.lilac} 50%, rgba(255,255,255,0.9) 100%)`,
           }}
@@ -2773,7 +2799,7 @@ function ExploreSocietyModal({
           </div>
         </div>
 
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6 overflow-y-auto">
           {loading && (
             <div className="space-y-3">
               <SkeletonBlock className="h-6 w-1/3" />
@@ -3732,7 +3758,9 @@ function QBlock({ q, opts }) {
 
 // Original App component, renamed to StudentDashboardApp
 function StudentDashboardApp() {
-  const [page, setPage] = useState("dashboard");
+  const location = useLocation();
+  const initialPage = location.state?.page || "dashboard";
+  const [page, setPage] = useState(initialPage);
   const [loading, setLoading] = useState(true);
   const [dashboardState, setDashboardState] = useState(emptyDashboard);
   const { push } = useToast();
@@ -3953,12 +3981,6 @@ function StudentDashboardApp() {
             errors.push(entry.reason);
           }
         });
-      } else {
-        const payload = await listEvents({ limit: 10, campus: baseUser.campus ?? undefined });
-        const mapped = Array.isArray(payload?.data)
-          ? payload.data.map(mapEventFromApi).filter(Boolean)
-          : [];
-        results.push(...mapped);
       }
 
       const deduped = Array.from(
@@ -4177,7 +4199,11 @@ function StudentDashboardApp() {
       {page === "dashboard" && (
         <DashboardPage
           loading={dashboardLoading}
-          summary={dashboardState.summary}
+          summary={{
+            activeSocieties: studentSocieties.length,
+            upcomingEvents: studentEvents.length,
+            newMatches: dashboardRecommendations.length,
+          }}
           recommendations={dashboardRecommendations}
           recommendationsLoading={recommendationsLoading}
           recommendationsError={recommendationsError}

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { Edit3, Filter, Loader2, Search, Trash2, X } from "lucide-react";
-import { fetchAdminSocieties, updateAdminSociety, deleteAdminSociety } from "@/services/admin.js";
+import { fetchAdminSocieties, updateAdminSociety, deleteAdminSociety, assignSocietyAdmin, fetchAdminUsers } from "@/services/admin.js";
 
 const numberFormatter = new Intl.NumberFormat("en-ZA");
 const pageSize = 20;
@@ -111,11 +111,14 @@ export default function SocietiesManager({ campusOptions = [] }) {
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", category: "", campus: "", description: "" });
+  const [originalEditForm, setOriginalEditForm] = useState({ name: "", category: "", campus: "", description: "" });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [banner, setBanner] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [societyAdmins, setSocietyAdmins] = useState([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
   const timeoutRef = useRef(null);
 
   useEffect(() => {
@@ -184,20 +187,52 @@ export default function SocietiesManager({ campusOptions = [] }) {
     timeoutRef.current = setTimeout(() => setBanner(null), 4000);
   };
 
-  const openEdit = (record) => {
+  const openEdit = async (record) => {
     setEditing(record);
-    setEditForm({
+    const initialForm = {
       name: record?.name ?? "",
       category: record?.category ?? "",
       campus: record?.campus ?? "",
       description: record?.description ?? "",
-    });
+      adminUserId: record?.adminId ?? "",
+    };
+    setEditForm(initialForm);
+    setOriginalEditForm(initialForm);
+
+    // Load all users (students and society_admins) for the dropdown
+    setLoadingAdmins(true);
+    try {
+      const usersData = await fetchAdminUsers({ limit: 100 });
+      const usersList = Array.isArray(usersData?.data) ? usersData.data : [];
+      // Filter to only students and society_admins
+      const eligibleUsers = usersList.filter(u => u.role === 'student' || u.role === 'society_admin');
+      setSocietyAdmins(eligibleUsers);
+    } catch (err) {
+      console.error("Failed to load users:", err);
+      console.error("Error details:", err.message, err.response?.data);
+      showBanner("error", `Failed to load users: ${err.message || "Unknown error"}`);
+      setSocietyAdmins([]);
+    } finally {
+      setLoadingAdmins(false);
+    }
   };
 
   const closeEdit = () => {
     if (saving) return;
     setEditing(null);
-    setEditForm({ name: "", category: "", campus: "", description: "" });
+    setEditForm({ name: "", category: "", campus: "", description: "", adminUserId: "" });
+    setOriginalEditForm({ name: "", category: "", campus: "", description: "", adminUserId: "" });
+    setSocietyAdmins([]);
+  };
+
+  const hasFormChanges = () => {
+    return (
+      editForm.name.trim() !== originalEditForm.name.trim() ||
+      editForm.category.trim() !== originalEditForm.category.trim() ||
+      editForm.campus !== originalEditForm.campus ||
+      editForm.description.trim() !== originalEditForm.description.trim() ||
+      editForm.adminUserId !== originalEditForm.adminUserId
+    );
   };
 
   const handleEditSubmit = async (event) => {
@@ -205,13 +240,25 @@ export default function SocietiesManager({ campusOptions = [] }) {
     if (!editing) return;
     setSaving(true);
     try {
+      // Update society details
       await updateAdminSociety(editing.societyId, {
         name: editForm.name.trim(),
         category: editForm.category.trim() || null,
         campus: editForm.campus || null,
         description: editForm.description.trim() || null,
       });
-      showBanner("success", "Society updated successfully");
+
+      // Assign admin if changed
+      const originalAdminId = editing.adminId || "";
+      const newAdminId = editForm.adminUserId || "";
+
+      if (newAdminId && newAdminId !== originalAdminId) {
+        await assignSocietyAdmin(editing.societyId, newAdminId);
+        showBanner("success", "Society and admin assignment updated successfully");
+      } else {
+        showBanner("success", "Society updated successfully");
+      }
+
       setReloadKey((value) => value + 1);
       closeEdit();
     } catch (err) {
@@ -446,7 +493,7 @@ export default function SocietiesManager({ campusOptions = [] }) {
               type="submit"
               form="admin-edit-society"
               className="flex items-center gap-2 rounded-xl bg-[#6a509b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5b4586] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={saving || !editForm.name.trim()}
+              disabled={saving || !editForm.name.trim() || !hasFormChanges()}
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : "Save changes"}
             </button>
@@ -489,6 +536,27 @@ export default function SocietiesManager({ campusOptions = [] }) {
                 ))}
               </select>
             </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Assign Society Admin</label>
+            <select
+              value={editForm.adminUserId || ""}
+              onChange={(event) => setEditForm((prev) => ({ ...prev, adminUserId: event.target.value }))}
+              className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
+              disabled={loadingAdmins}
+            >
+              <option value="">Unassigned</option>
+              {societyAdmins.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName} - {user.role === 'student' ? 'Student (will be promoted)' : 'Society Admin'} ({user.email})
+                </option>
+              ))}
+            </select>
+            {loadingAdmins ? (
+              <p className="text-xs text-gray-500">Loading users...</p>
+            ) : (
+              <p className="text-xs text-gray-500">Select a student or existing admin. Students will be promoted to society admin role.</p>
+            )}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Description</label>

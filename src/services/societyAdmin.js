@@ -13,7 +13,10 @@ export async function getMySociety() {
     const response = await api.get('/societies/my-society');
     return response.data;
   } catch (error) {
-    console.error('Error fetching my society:', error);
+    // Don't log 404 errors - they're expected for unassigned admins
+    if (error?.response?.status !== 404 && error?.status !== 404) {
+      console.error('Error fetching my society:', error);
+    }
     throw error;
   }
 }

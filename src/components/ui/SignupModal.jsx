@@ -121,6 +121,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError("University number must be exactly 8 digits.");
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -128,6 +129,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError("Name and surname can only contain letters, spaces, hyphens, and apostrophes.");
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -135,6 +137,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError("Please enter a valid email address.");
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -143,6 +146,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError("Phone number must be exactly 10 digits.");
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -150,6 +154,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError("Password must be at least 8 characters long.");
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -157,6 +162,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError("Password does not meet all requirements.");
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -164,6 +170,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError("Passwords do not match.");
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -171,6 +178,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError("You must accept the Terms & Conditions.");
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -189,6 +197,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError(message);
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
       return;
     }
 
@@ -255,6 +264,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
       setSignupStatus("error");
       setError(message);
       setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 3000);
     }
   };
 
@@ -335,7 +345,8 @@ export default function SignupModal({ open, onClose, goLogin }) {
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
 
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="relative w-full max-w-md rounded-2xl bg-white p-6 space-y-4 border border-white shadow-lg">
+        <Dialog.Panel className="relative w-full max-w-md max-h-[90vh] rounded-2xl bg-white border border-white shadow-lg flex flex-col">
+          <div className="overflow-y-auto p-6 space-y-4">
           {/* Close */}
           <button
             onClick={handleClose}
@@ -776,6 +787,7 @@ export default function SignupModal({ open, onClose, goLogin }) {
               </button>
             </p>
           )}
+          </div>
         </Dialog.Panel>
       </div>
     </Dialog>

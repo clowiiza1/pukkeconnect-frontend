@@ -1,8 +1,10 @@
 // About.jsx
 import { motion } from "framer-motion";
 import { Star, TrendingUp, Smile } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function About({ goAuth }) {
+  const navigate = useNavigate();
   return (
     <section id="about" className="bg-white py-20 px-6 md:px-12 lg:px-20">
       <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12 items-center">
@@ -95,7 +97,7 @@ export default function About({ goAuth }) {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-mediumpur to-softlav px-6 py-3 text-white font-semibold shadow hover:opacity-90 transition"
-            onClick={() => goAuth("login")} // 🔑 opens LoginModal
+            onClick={() => navigate("/about")}
           >
             Explore More
           </motion.button>

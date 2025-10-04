@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 // --- Color Palette ---
 const colors = {
@@ -50,6 +51,18 @@ const ContactItem = ({ Icon, title, content, link }) => (
 
 // --- Main Contact Page ---
 export default function ContactPage() {
+  const navigate = useNavigate();
+
+  const handleFaqClick = () => {
+    navigate('/#faq');
+    setTimeout(() => {
+      const faqSection = document.getElementById('faq');
+      if (faqSection) {
+        faqSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
   const contactInfo = [
     {
       title: 'General Email Support',
@@ -80,7 +93,7 @@ export default function ContactPage() {
     <div
       className="min-h-screen flex items-center justify-center p-6 sm:p-12 font-sans"
       style={{
-        background: 'linear-gradient(to bottom, #f3e6ff 0%, #ffffff 40%)', 
+        background: 'linear-gradient(to bottom, #ac98cd 0%, #ffffff 40%)',
       }}
     >
       <Card
@@ -107,7 +120,7 @@ export default function ContactPage() {
             For urgent matters, please use the phone number above. For all other queries, email is preferred.
           </p>
           <button
-            onClick={() => console.log('Navigating to Support FAQs')}
+            onClick={handleFaqClick}
             className="mt-4 px-6 py-2 rounded-xl font-medium shadow-md transition-transform transform hover:scale-105 hover:opacity-90 text-white bg-gradient-to-r from-[#6a0dad] to-[#c4a7e7]"
           >
             View Support FAQs

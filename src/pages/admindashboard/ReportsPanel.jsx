@@ -1,275 +1,455 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Download, RotateCw } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Download, Filter, Calendar } from "lucide-react";
 import jsPDF from "jspdf";
-import { fetchAdminReports, updateAdminReport } from "@/services/admin.js";
+import autoTable from "jspdf-autotable";
+import { api } from "@/services/apis.jsx";
 
-const statusLabels = {
-  open: "Open",
-  in_review: "In Review",
-  resolved: "Resolved",
-  dismissed: "Dismissed",
+const colors = {
+  paper: "#e7e7e7",
+  mist: "#d2d3de",
+  lilac: "#ac98cd",
+  plum: "#6a509b",
 };
 
-const statusOptions = ["all", "open", "in_review", "resolved", "dismissed"];
+const reportTypes = [
+  { value: "societies", label: "Societies Report", description: "Overview of all societies, members, and activity" },
+  { value: "events", label: "Events Report", description: "Event statistics, RSVPs, and attendance" },
+  { value: "users", label: "Users Report", description: "User registrations, roles, and campus distribution" },
+  { value: "posts", label: "Posts Report", description: "Post activity and engagement across societies" },
+  { value: "memberships", label: "Memberships Report", description: "Membership statistics and status breakdown" },
+  { value: "engagement", label: "Engagement Report", description: "Platform-wide engagement metrics" },
+];
+
+const campusOptions = ["All", "Mafikeng", "Potchefstroom", "Vanderbijlpark"];
 
 function formatDate(value) {
   if (!value) return "N/A";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-ZA", {
+  return date.toLocaleDateString("en-ZA", {
     year: "numeric",
     month: "short",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
-function StatusBadge({ value }) {
-  const tone = {
-    open: "bg-orange-100 text-orange-700",
-    in_review: "bg-amber-100 text-amber-700",
-    resolved: "bg-emerald-100 text-emerald-700",
-    dismissed: "bg-gray-200 text-gray-700",
-  }[value] || "bg-gray-200 text-gray-700";
-
-  return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
-      {statusLabels[value] || value}
-    </span>
-  );
-}
-
 export default function ReportsPanel() {
-  const [statusFilter, setStatusFilter] = useState("open");
-  const [reports, setReports] = useState([]);
+  const [selectedReport, setSelectedReport] = useState("societies");
+  const [campusFilter, setCampusFilter] = useState("All");
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [updatingId, setUpdatingId] = useState(null);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetchAdminReports(statusFilter === "all" ? {} : { status: statusFilter })
-      .then((data) => {
-        if (!cancelled) setReports(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err?.message || "Failed to load reports");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    loadReportData();
+  }, [selectedReport, campusFilter, dateRange]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [statusFilter, refreshKey]);
-
-  const counts = useMemo(() => {
-    return reports.reduce(
-      (acc, report) => {
-        acc.total += 1;
-        const key = report.status;
-        if (acc[key] == null) acc[key] = 0;
-        acc[key] += 1;
-        return acc;
-      },
-      { total: 0 }
-    );
-  }, [reports]);
-
-  const handleStatusUpdate = async (reportId, nextStatus) => {
+  const loadReportData = async () => {
     try {
-      setUpdatingId(reportId);
-      await updateAdminReport(reportId, { status: nextStatus });
-      setReports((prev) =>
-        prev.map((report) =>
-          report.reportId === reportId ? { ...report, status: nextStatus, updatedAt: new Date().toISOString() } : report
-        )
-      );
+      setLoading(true);
+      setError(null);
+
+      const params = {};
+      if (campusFilter !== "All") params.campus = campusFilter;
+      if (dateRange.start) params.startDate = dateRange.start;
+      if (dateRange.end) params.endDate = dateRange.end;
+
+      let data = {};
+
+      switch (selectedReport) {
+        case "societies":
+          const societies = await api.get("/admin/societies", { params: { limit: 100, ...params } });
+          // Calculate stats from filtered societies data
+          data = {
+            societies: societies.data.data,
+            total: societies.data.total,
+            stats: {
+              societies: societies.data.total,
+              memberships: societies.data.data.reduce((sum, s) => sum + (s.memberCount || 0), 0),
+            },
+          };
+          break;
+
+        case "events":
+          const events = await api.get("/events", { params: { limit: 100, ...params } });
+          // Calculate stats from events data
+          const totalRsvps = events.data.data.reduce((sum, e) => sum + (e.rsvps || 0), 0);
+          data = {
+            events: events.data.data,
+            total: events.data.total,
+            stats: {
+              events: events.data.total,
+              rsvps: totalRsvps,
+            },
+          };
+          break;
+
+        case "users":
+          const users = await api.get("/admin/users", { params: { limit: 100, ...params } });
+          // Calculate stats from filtered users data
+          data = {
+            users: users.data.data,
+            total: users.data.total,
+            stats: {
+              users: users.data.total,
+            },
+          };
+          break;
+
+        case "posts":
+          const posts = await api.get("/admin/posts", { params: { limit: 100, ...params } });
+          data = {
+            posts: posts.data.data,
+            total: posts.data.total,
+            stats: {
+              posts: posts.data.total,
+            },
+          };
+          break;
+
+        case "memberships":
+          const memberships = await api.get("/admin/stats");
+          data = {
+            stats: memberships.data,
+          };
+          break;
+
+        case "engagement":
+          const engagement = await api.get("/admin/stats");
+          data = {
+            stats: engagement.data,
+          };
+          break;
+      }
+
+      setReportData(data);
     } catch (err) {
-      setError(err?.message || "Unable to update report status");
+      console.error("Failed to load report data:", err);
+      setError("Failed to load report data");
     } finally {
-      setUpdatingId(null);
+      setLoading(false);
     }
   };
 
-  const handlePdfDownload = () => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
-    const marginLeft = 40;
-    let y = 60;
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.setFontSize(16);
-    doc.text("PukkeConnect Reports", marginLeft, y);
+    // Header
+    doc.setFontSize(18);
+    doc.setTextColor(106, 80, 155); // plum color
+    doc.text("PukkeConnect", 14, 20);
+
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    const reportLabel = reportTypes.find(r => r.value === selectedReport)?.label || "Report";
+    doc.text(reportLabel, 14, 30);
+
     doc.setFontSize(10);
-    doc.text(`Generated: ${formatDate(new Date().toISOString())}`, marginLeft, (y += 18));
-    doc.text(`Filter: ${statusFilter === "all" ? "All statuses" : statusLabels[statusFilter] || statusFilter}`, marginLeft, (y += 14));
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated: ${formatDate(new Date())}`, 14, 38);
+    doc.text(`Campus Filter: ${campusFilter}`, 14, 44);
+    if (dateRange.start || dateRange.end) {
+      doc.text(`Date Range: ${dateRange.start || 'N/A'} to ${dateRange.end || 'N/A'}`, 14, 50);
+    }
 
-    y += 16;
-    doc.setFontSize(9.5);
-    doc.text("ID", marginLeft, y);
-    doc.text("Status", marginLeft + 70, y);
-    doc.text("Target", marginLeft + 140, y);
-    doc.text("Reason", marginLeft + 220, y);
-    doc.text("Submitted", marginLeft + 460, y);
+    let yPos = dateRange.start || dateRange.end ? 58 : 52;
 
-    y += 12;
-    doc.setLineWidth(0.5);
-    doc.line(marginLeft, y, marginLeft + 520, y);
+    // Generate different content based on report type
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
 
-    doc.setFontSize(9);
-    reports.forEach((report) => {
-      y += 16;
-      if (y > 760) {
-        doc.addPage();
-        y = 60;
-      }
-      const reason = (report.reason || "").slice(0, 70);
-      doc.text(String(report.reportId || report.report_id || "?"), marginLeft, y);
-      doc.text(statusLabels[report.status] || report.status, marginLeft + 70, y);
-      doc.text(`${report.targetType || ""} #${report.targetId || ""}`.trim(), marginLeft + 140, y);
-      doc.text(reason, marginLeft + 220, y, { maxWidth: 220 });
-      doc.text(formatDate(report.createdAt), marginLeft + 460, y);
-    });
+    switch (selectedReport) {
+      case "societies":
+        if (reportData?.societies) {
+          doc.text("Societies Overview", 14, yPos);
+          yPos += 8;
 
-    doc.save("pukkeconnect-reports.pdf");
+          const societyData = reportData.societies.map(s => [
+            s.name,
+            s.category || "N/A",
+            s.campus || "N/A",
+            s.status || "N/A",
+            formatDate(s.createdAt),
+          ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [["Society Name", "Category", "Campus", "Status", "Created"]],
+            body: societyData,
+            theme: "striped",
+            headStyles: { fillColor: [106, 80, 155] },
+            styles: { fontSize: 9 },
+          });
+        }
+        break;
+
+      case "events":
+        if (reportData?.events) {
+          doc.text("Events Overview", 14, yPos);
+          yPos += 8;
+
+          const eventData = reportData.events.map(e => [
+            e.title,
+            e.society?.name || "N/A",
+            e.rsvps || 0,
+            formatDate(e.startsAt),
+            e.location || "N/A",
+          ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [["Event Title", "Society", "RSVPs", "Date", "Location"]],
+            body: eventData,
+            theme: "striped",
+            headStyles: { fillColor: [106, 80, 155] },
+            styles: { fontSize: 9 },
+          });
+        }
+        break;
+
+      case "users":
+        if (reportData?.users) {
+          doc.text("Users Overview", 14, yPos);
+          yPos += 8;
+
+          const userData = reportData.users.map(u => [
+            `${u.firstName} ${u.lastName}`,
+            u.universityNumber,
+            u.role,
+            u.campus || "N/A",
+            formatDate(u.createdAt),
+          ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [["Name", "Student #", "Role", "Campus", "Registered"]],
+            body: userData,
+            theme: "striped",
+            headStyles: { fillColor: [106, 80, 155] },
+            styles: { fontSize: 9 },
+          });
+        }
+        break;
+
+      case "posts":
+        if (reportData?.posts) {
+          doc.text("Posts Overview", 14, yPos);
+          yPos += 8;
+
+          const postData = reportData.posts.map(p => [
+            p.society?.name || "N/A",
+            p.author ? `${p.author.firstName} ${p.author.lastName}` : "Unknown",
+            p.content.substring(0, 50) + (p.content.length > 50 ? "..." : ""),
+            formatDate(p.createdAt),
+          ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [["Society", "Author", "Content", "Posted"]],
+            body: postData,
+            theme: "striped",
+            headStyles: { fillColor: [106, 80, 155] },
+            styles: { fontSize: 9 },
+          });
+        }
+        break;
+
+      case "memberships":
+        doc.text("Membership Statistics", 14, yPos);
+        yPos += 10;
+        doc.setFontSize(10);
+        doc.text(`Total Active Memberships: ${reportData?.stats?.memberships || 0}`, 14, yPos);
+        yPos += 6;
+        doc.text(`Total Societies: ${reportData?.stats?.societies || 0}`, 14, yPos);
+        yPos += 6;
+        doc.text(`Total Users: ${reportData?.stats?.users || 0}`, 14, yPos);
+        break;
+
+      case "engagement":
+        doc.text("Platform Engagement Metrics", 14, yPos);
+        yPos += 10;
+        doc.setFontSize(10);
+        doc.text(`Total Users: ${reportData?.stats?.users || 0}`, 14, yPos);
+        yPos += 6;
+        doc.text(`Total Events: ${reportData?.stats?.events || 0}`, 14, yPos);
+        yPos += 6;
+        doc.text(`Total RSVPs: ${reportData?.stats?.rsvps || 0}`, 14, yPos);
+        yPos += 6;
+        doc.text(`Total Posts: ${reportData?.stats?.posts || 0}`, 14, yPos);
+        yPos += 6;
+        doc.text(`Total Societies: ${reportData?.stats?.societies || 0}`, 14, yPos);
+        break;
+    }
+
+    // Save PDF
+    const fileName = `pukkeconnect-${selectedReport}-report-${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
   };
 
+  const selectedReportInfo = reportTypes.find(r => r.value === selectedReport);
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          {statusOptions.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setStatusFilter(option)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                statusFilter === option
-                  ? "border-[#6a509b] bg-[#6a509b] text-white"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              {option === "all" ? "All" : statusLabels[option] || option}
-            </button>
-          ))}
+    <div className="space-y-6">
+      {/* Report Type Selection */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {reportTypes.map((report) => (
+          <button
+            key={report.value}
+            onClick={() => setSelectedReport(report.value)}
+            className={`p-4 rounded-2xl border-2 transition-all text-left cursor-pointer ${
+              selectedReport === report.value
+                ? "border-opacity-100"
+                : "border-opacity-0 hover:border-opacity-50"
+            }`}
+            style={{
+              borderColor: selectedReport === report.value ? colors.plum : colors.mist,
+              background: selectedReport === report.value ? `${colors.lilac}15` : "white",
+            }}
+          >
+            <div className="font-semibold text-gray-900">{report.label}</div>
+            <div className="text-xs text-gray-600 mt-1">{report.description}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div
+        className="rounded-3xl p-5"
+        style={{ background: "white", border: `1px solid ${colors.mist}` }}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <Filter size={18} style={{ color: colors.plum }} />
+          <h3 className="font-semibold" style={{ color: colors.plum }}>Filters</h3>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-2 text-gray-700">Campus</label>
+            <select
+              value={campusFilter}
+              onChange={(e) => setCampusFilter(e.target.value)}
+              className="w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2"
+              style={{ borderColor: colors.mist }}
+            >
+              {campusOptions.map((campus) => (
+                <option key={campus} value={campus}>{campus}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2 text-gray-700">Start Date</label>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+              className="w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2"
+              style={{ borderColor: colors.mist }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2 text-gray-700">End Date</label>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+              className="w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2"
+              style={{ borderColor: colors.mist }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Report Preview */}
+      <div
+        className="rounded-3xl p-5"
+        style={{ background: "white", border: `1px solid ${colors.mist}` }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-lg" style={{ color: colors.plum }}>
+              {selectedReportInfo?.label}
+            </h3>
+            <p className="text-sm text-gray-600">{selectedReportInfo?.description}</p>
+          </div>
           <button
-            type="button"
-            onClick={() => setRefreshKey((value) => value + 1)}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
-            disabled={loading}
-          >
-            <RotateCw size={16} className={loading ? "animate-spin" : undefined} />
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={handlePdfDownload}
-            className="flex items-center gap-2 rounded-xl bg-[#6a509b] px-3 py-2 text-sm font-semibold text-white hover:bg-[#5b4586]"
-            disabled={!reports.length}
+            onClick={generatePDF}
+            disabled={loading || !reportData}
+            className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+            style={{ background: colors.plum }}
           >
             <Download size={16} />
             Download PDF
           </button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 text-center">
-          <div className="text-2xl font-semibold text-gray-900">{counts.total ?? 0}</div>
-          <div className="text-xs uppercase tracking-wide text-gray-500">Total Reports</div>
-        </div>
-        {(["open", "in_review", "resolved", "dismissed"]).map((key) => (
-          <div key={key} className="rounded-2xl border border-gray-200 bg-white p-3 text-center">
-            <div className="text-2xl font-semibold text-gray-900">{counts[key] ?? 0}</div>
-            <div className="text-xs uppercase tracking-wide text-gray-500">{statusLabels[key]}</div>
-          </div>
-        ))}
-      </div>
-
-      {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm text-gray-700">
-          <thead>
-            <tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-              <th className="px-4 py-3">Report</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Target</th>
-              <th className="px-4 py-3">Reason</th>
-              <th className="px-4 py-3">Reporter</th>
-              <th className="px-4 py-3">Submitted</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, index) => (
-                <tr key={index} className="animate-pulse border-b last:border-0">
-                  {Array.from({ length: 6 }).map((__, cell) => (
-                    <td key={cell} className="px-4 py-3">
-                      <div className="h-3 rounded bg-gray-200" />
-                    </td>
-                  ))}
-                </tr>
-              ))
-            ) : reports.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
-                  No reports for the selected filter.
-                </td>
-              </tr>
-            ) : (
-              reports.map((report) => (
-                <tr key={report.reportId} className="border-b last:border-0">
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-gray-900">#{report.reportId}</div>
-                    <div className="text-xs text-gray-500">Updated {formatDate(report.updatedAt)}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge value={report.status} />
-                    <div className="mt-2">
-                      <select
-                        value={report.status}
-                        onChange={(event) => handleStatusUpdate(report.reportId, event.target.value)}
-                        className="w-full rounded-xl border border-gray-200 px-2 py-1 text-xs text-gray-600 focus:border-[#6a509b] focus:outline-none"
-                        disabled={updatingId === report.reportId}
-                      >
-                        {Object.keys(statusLabels).map((key) => (
-                          <option key={key} value={key}>
-                            {statusLabels[key]}
-                          </option>
-                        ))}
-                      </select>
+        {loading ? (
+          <div className="text-center py-12 text-sm opacity-70">Loading report data...</div>
+        ) : error ? (
+          <div className="text-center py-12 text-sm text-red-600">{error}</div>
+        ) : reportData ? (
+          <div className="space-y-4">
+            {/* Summary Stats */}
+            {reportData.stats && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {selectedReport === "societies" && (
+                  <>
+                    <div className="rounded-2xl p-3" style={{ background: colors.paper }}>
+                      <div className="text-2xl font-bold" style={{ color: colors.plum }}>{reportData.stats.societies || 0}</div>
+                      <div className="text-xs text-gray-600">Total Societies</div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {report.targetType || "Unknown"}
-                    <div className="text-xs text-gray-500">ID: {report.targetId || "?"}</div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    <div className="max-w-xs truncate" title={report.reason || ""}>
-                      {report.reason || "No description"}
+                    <div className="rounded-2xl p-3" style={{ background: colors.paper }}>
+                      <div className="text-2xl font-bold" style={{ color: colors.plum }}>{reportData.stats.memberships || 0}</div>
+                      <div className="text-xs text-gray-600">Total Members</div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {report.reporterId || "Anonymous"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{formatDate(report.createdAt)}</td>
-                </tr>
-              ))
+                  </>
+                )}
+                {selectedReport === "events" && (
+                  <>
+                    <div className="rounded-2xl p-3" style={{ background: colors.paper }}>
+                      <div className="text-2xl font-bold" style={{ color: colors.plum }}>{reportData.stats?.events || reportData.total || 0}</div>
+                      <div className="text-xs text-gray-600">Total Events</div>
+                    </div>
+                    <div className="rounded-2xl p-3" style={{ background: colors.paper }}>
+                      <div className="text-2xl font-bold" style={{ color: colors.plum }}>{reportData.stats?.rsvps || 0}</div>
+                      <div className="text-xs text-gray-600">Total RSVPs</div>
+                    </div>
+                  </>
+                )}
+                {selectedReport === "users" && (
+                  <>
+                    <div className="rounded-2xl p-3" style={{ background: colors.paper }}>
+                      <div className="text-2xl font-bold" style={{ color: colors.plum }}>{reportData.stats.users || 0}</div>
+                      <div className="text-xs text-gray-600">Total Users</div>
+                    </div>
+                  </>
+                )}
+                {selectedReport === "posts" && (
+                  <>
+                    <div className="rounded-2xl p-3" style={{ background: colors.paper }}>
+                      <div className="text-2xl font-bold" style={{ color: colors.plum }}>{reportData.stats?.posts || reportData.total || 0}</div>
+                      <div className="text-xs text-gray-600">Total Posts</div>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
-          </tbody>
-        </table>
+
+            {/* Data Preview */}
+            <div className="text-sm text-gray-600">
+              {reportData.societies && `Showing ${reportData.societies.length} of ${reportData.total} societies`}
+              {reportData.events && `Showing ${reportData.events.length} of ${reportData.total} events`}
+              {reportData.users && `Showing ${reportData.users.length} of ${reportData.total} users`}
+              {reportData.posts && `Showing ${reportData.posts.length} of ${reportData.total} posts`}
+              {(selectedReport === "memberships" || selectedReport === "engagement") && "Summary statistics ready for export"}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-sm opacity-70">No data available</div>
+        )}
       </div>
     </div>
   );
