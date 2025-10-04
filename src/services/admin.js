@@ -80,3 +80,84 @@ export async function deleteAdminUser(userId) {
     throw asApiError(error);
   }
 }
+
+export async function assignSocietyAdmin(societyId, adminUserId) {
+  try {
+    const response = await api.put(`/societies/${societyId}/assign-admin`, { adminUserId });
+    return response.data;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}
+
+export async function fetchAdminEvents(params = {}) {
+  try {
+    const response = await api.get("/events", { params });
+    return response.data;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}
+
+export async function updateAdminEvent(eventId, payload) {
+  try {
+    const response = await api.put(`/events/${eventId}`, payload);
+    return response.data;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}
+
+export async function deleteAdminEvent(eventId) {
+  try {
+    await api.delete(`/events/${eventId}`);
+    return true;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}
+
+export async function fetchAdminPosts(params = {}) {
+  try {
+    const response = await api.get("/admin/posts", { params });
+    return response.data;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}
+
+export async function updateAdminPost(postId, payload) {
+  try {
+    const response = await api.put(`/posts/${postId}`, payload);
+    return response.data;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}
+
+export async function deleteAdminPost(postId) {
+  try {
+    await api.delete(`/posts/${postId}`);
+    return true;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}
+
+export async function approveSociety(societyId) {
+  try {
+    const response = await api.post(`/societies/${societyId}/approve`);
+    return response.data;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}
+
+export async function rejectSociety(societyId) {
+  try {
+    const response = await api.post(`/societies/${societyId}/reject`);
+    return response.data;
+  } catch (error) {
+    throw asApiError(error);
+  }
+}

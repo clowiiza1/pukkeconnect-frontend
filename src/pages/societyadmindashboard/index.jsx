@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { api, asApiError } from "@/services/apis.jsx";
 //=====MOCK IMAGES FOR MEMBERS ======//
 import photo1 from "@/assets/photo1.jpg";
 import photo2 from "@/assets/photo2.jpg";
@@ -54,6 +55,9 @@ import {
   PauseCircle,
   XCircle,
   MapPin,
+  Building2,
+  Home,
+  LogOut,
 } from "lucide-react";
 
 
@@ -224,13 +228,12 @@ const mockParticipation = [
 ];
 
 // Layout shell (light, like student dashboard)
-function Shell({ page, setPage, children }) {
+function Shell({ page, setPage, children, hasSociety }) {
   const [open, setOpen] = useState(true);
-  const [societyData, setSocietyData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth(); // Get user from AuthContext
+  const { user, logout } = useAuth(); // Get user from AuthContext
 
-  const nav = [
+  // Nav items for admins WITH a society
+  const fullNav = [
     { key: "overview", label: "Overview", icon: <LayoutDashboard size={18} /> },
     { key: "members", label: "Members", icon: <Users size={18} /> },
     { key: "events", label: "Events", icon: <CalendarDays size={18} /> },
@@ -240,24 +243,13 @@ function Shell({ page, setPage, children }) {
     { key: "metrics", label: "Metrics", icon: <BarChart3 size={18} /> },
   ];
 
-  // Load society data
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
+  // Nav items for admins WITHOUT a society
+  const limitedNav = [
+    { key: "overview", label: "Overview", icon: <LayoutDashboard size={18} /> },
+    { key: "register", label: "Register Society", icon: <Plus size={18} /> },
+  ];
 
-        // Get society data
-        const society = await getMySociety();
-        setSocietyData(society);
-      } catch (err) {
-        console.error("Error loading dashboard data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
+  const nav = hasSociety ? fullNav : limitedNav;
 
 
   return (
@@ -297,6 +289,29 @@ function Shell({ page, setPage, children }) {
               </span>
             </span>
           </Link>
+          <div className="ml-auto flex items-center gap-2">
+            <Link
+              to="/"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-opacity-20"
+              style={{ background: colors.mist }}
+            >
+              <Home size={18} style={{ color: colors.plum }} />
+              <span className="text-sm font-medium hidden md:block" style={{ color: colors.plum }}>
+                Home
+              </span>
+            </Link>
+            <button
+              onClick={() => {
+                logout();
+                window.location.href = '/';
+              }}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-opacity-80"
+              style={{ background: colors.plum, color: 'white' }}
+            >
+              <LogOut size={18} />
+              <span className="text-sm font-medium hidden md:block">Logout</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -337,23 +352,13 @@ function Shell({ page, setPage, children }) {
             </nav>
 
             <div className="mt-4 p-3 rounded-2xl" style={{ background: colors.mist }}>
-              {loading ? (
-                <div className="text-xs text-gray-500">Loading...</div>
-              ) : (
-                <>
-                  <div className="text-xs opacity-70 mb-1">Managing</div>
-                  <div className="text-sm font-semibold truncate" title={societyData?.name}>
-                    {societyData?.name || 'AI & Robotics Society'}
-                  </div>
-                  <div className="text-xs opacity-70 mt-2">Admin</div>
-                  <div className="text-xs font-medium">
-                    {user ? `${user.firstName} ${user.lastName}` : 'Admin User'}
-                  </div>
-                  <div className="text-xs opacity-70">
-                    {user?.universityNumber || 'N/A'}
-                  </div>
-                </>
-              )}
+              <div className="text-xs opacity-70 mt-2">Admin</div>
+              <div className="text-xs font-medium">
+                {user ? `${user.firstName} ${user.lastName}` : 'Admin User'}
+              </div>
+              <div className="text-xs opacity-70">
+                {user?.universityNumber || 'N/A'}
+              </div>
             </div>
           </div>
         </aside>
@@ -645,7 +650,7 @@ function MembersPage() {
   const [selectAll, setSelectAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const societyId = "1001"; // TODO: Get from auth context
+  const [societyId, setSocietyId] = useState(null);
   const [societyName, setSocietyName] = useState("");
 
   // Confirmation modal state
@@ -665,10 +670,14 @@ function MembersPage() {
         setLoading(true);
         setError(null);
 
+        // Get the current user's society first
+        const society = await getMySociety();
+        setSocietyId(society.societyId);
+
         // Fetch society details and members in parallel
         const [societyData, membersData] = await Promise.all([
-          getSocietyDetails(societyId),
-          getSocietyMembers(societyId)
+          getSocietyDetails(society.societyId),
+          getSocietyMembers(society.societyId)
         ]);
 
         // Set society name
@@ -1226,15 +1235,7 @@ function MembersPage() {
       {members.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-2xl">
           <div className="text-lg font-medium text-gray-900 mb-2">No members yet</div>
-          <p className="text-gray-600 mb-4">Get started by inviting members or approving join requests</p>
-          <div className="flex gap-3 justify-center">
-            <button className="bg-mediumpur text-white px-4 py-2 rounded-lg hover:bg-mediumpur/90 transition-colors text-sm">
-              Invite Members
-            </button>
-            <button className="border border-mediumpur text-mediumpur px-4 py-2 rounded-lg hover:bg-mediumpur/10 transition-colors text-sm">
-              View Join Requests
-            </button>
-          </div>
+          <p className="text-gray-600">Your society doesn't have any members at the moment. Members will appear here once they join your society.</p>
         </div>
       ) : (
         /* Main Flow: Member List Table */
@@ -1390,7 +1391,7 @@ function EventsPage() {
   const [rsvpList, setRsvpList] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const societyId = "1001"; // TODO: Get from auth context
+  const [societyId, setSocietyId] = useState(null);
   const [newEvent, setNewEvent] = useState({
     title: "",
     description: "",
@@ -1419,7 +1420,11 @@ function EventsPage() {
         setLoading(true);
         setError(null);
 
-        const response = await getSocietyEvents(societyId);
+        // Get the current user's society first
+        const society = await getMySociety();
+        setSocietyId(society.societyId);
+
+        const response = await getSocietyEvents(society.societyId);
         console.log("Events API response:", response);
         console.log("Response type:", typeof response);
         console.log("Is array?", Array.isArray(response));
@@ -5637,20 +5642,328 @@ function MetricsPage() {
   );
 }
 
+// Pages for unassigned society admins
+function NoSocietyOverviewPage({ setPage }) {
+  const [pendingSocieties, setPendingSocieties] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPendingSocieties = async () => {
+      try {
+        setLoading(true);
+        // Get societies where the current user is the creator and status is pending
+        const response = await api.get("/societies/my-pending");
+        setPendingSocieties(response.data.data || []);
+      } catch (err) {
+        console.error("Error loading pending societies:", err);
+        setPendingSocieties([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPendingSocieties();
+  }, []);
+
+  const hasPending = pendingSocieties.length > 0;
+
+  return (
+    <Card>
+      <div className="text-center py-12 px-4">
+        <div
+          className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center"
+          style={{ background: `${colors.lilac}20` }}
+        >
+          {hasPending ? (
+            <PauseCircle size={40} style={{ color: colors.plum }} />
+          ) : (
+            <Building2 size={40} style={{ color: colors.plum }} />
+          )}
+        </div>
+
+        {loading ? (
+          <p className="text-gray-600">Loading...</p>
+        ) : hasPending ? (
+          <>
+            <h2 className="text-2xl font-bold mb-3" style={{ color: colors.plum }}>
+              Society Registration Pending
+            </h2>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Your society registration is awaiting approval from a university admin. You will be notified once it has been reviewed.
+            </p>
+
+            <div className="max-w-md mx-auto mb-6">
+              {pendingSocieties.map((society) => (
+                <div
+                  key={society.societyId}
+                  className="p-4 rounded-2xl text-left"
+                  style={{ background: colors.paper }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <h3 className="font-semibold mb-1" style={{ color: colors.plum }}>
+                        {society.name}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-2">{society.description}</p>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span>{society.category}</span>
+                        <span>•</span>
+                        <span>{society.campus}</span>
+                      </div>
+                    </div>
+                    <div
+                      className="px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+                      style={{ background: `${colors.lilac}30`, color: colors.plum }}
+                    >
+                      Pending
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+              Need to register another society?
+            </p>
+            <button
+              onClick={() => setPage("register")}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-white font-semibold transition-opacity hover:opacity-90"
+              style={{ background: colors.plum }}
+            >
+              <Plus size={20} />
+              Register Another Society
+            </button>
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-bold mb-3" style={{ color: colors.plum }}>
+              No Society Assigned
+            </h2>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              You have not been assigned to a society yet. Register a new society and wait for approval from a university admin, or contact an admin to be assigned to an existing society.
+            </p>
+            <button
+              onClick={() => setPage("register")}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-white font-semibold transition-opacity hover:opacity-90"
+              style={{ background: colors.plum }}
+            >
+              <Plus size={20} />
+              Register Society
+            </button>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function RegisterSocietyPage() {
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    category: "",
+    campus: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!formData.name.trim()) {
+      setError("Society name is required");
+      return;
+    }
+    if (!formData.description.trim()) {
+      setError("Description is required");
+      return;
+    }
+    if (!formData.category.trim()) {
+      setError("Category is required");
+      return;
+    }
+    if (!formData.campus) {
+      setError("Campus is required");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const response = await api.post("/societies", {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        category: formData.category.trim(),
+        campus: formData.campus,
+      });
+
+      setSuccess(true);
+      setFormData({ name: "", description: "", category: "", campus: "" });
+
+      setTimeout(() => {
+        window.location.reload(); // Reload to check for society assignment
+      }, 2000);
+    } catch (err) {
+      setError(asApiError(err)?.message || "Failed to register society");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Card title="Register Society" subtitle="Submit your society for approval by university admin">
+      {success && (
+        <div className="mb-4 p-4 rounded-2xl" style={{ background: `${colors.lilac}20` }}>
+          <div className="flex items-center gap-2" style={{ color: colors.plum }}>
+            <CheckCircle size={20} />
+            <span className="font-semibold">Society registered successfully!</span>
+          </div>
+          <p className="text-sm mt-1 text-gray-600">
+            Your society registration is pending approval. You will be notified once reviewed.
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-4 rounded-2xl bg-red-50 text-red-600">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-semibold mb-2" style={{ color: colors.plum }}>
+            Society Name *
+          </label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="e.g., AI Society"
+            className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2"
+            style={{ borderColor: colors.mist }}
+            maxLength={150}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold mb-2" style={{ color: colors.plum }}>
+            Description *
+          </label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Tell us about your society..."
+            className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 min-h-[120px]"
+            style={{ borderColor: colors.mist }}
+            maxLength={4000}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold mb-2" style={{ color: colors.plum }}>
+            Category *
+          </label>
+          <input
+            type="text"
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            placeholder="e.g., Technology, Sports, Arts"
+            className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2"
+            style={{ borderColor: colors.mist }}
+            maxLength={100}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold mb-2" style={{ color: colors.plum }}>
+            Campus *
+          </label>
+          <select
+            value={formData.campus}
+            onChange={(e) => setFormData({ ...formData, campus: e.target.value })}
+            className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2"
+            style={{ borderColor: colors.mist }}
+          >
+            <option value="">Select campus</option>
+            <option value="Mafikeng">Mafikeng</option>
+            <option value="Potchefstroom">Potchefstroom</option>
+            <option value="Vanderbijlpark">Vanderbijlpark</option>
+          </select>
+        </div>
+
+        <div className="pt-4">
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3 rounded-2xl text-white font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ background: colors.plum }}
+          >
+            {submitting ? "Submitting..." : "Submit for Approval"}
+          </button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
 // App wrapper
 export default function SocietyAdminDashboard() {
   const [page, setPage] = useState("overview");
+  const [hasSociety, setHasSociety] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkSociety = async () => {
+      try {
+        setLoading(true);
+        const society = await getMySociety();
+        setHasSociety(!!society);
+      } catch (err) {
+        // 404 is expected for admins without assigned societies
+        if (err?.status !== 404) {
+          console.error("Error checking society:", err);
+        }
+        setHasSociety(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSociety();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg font-semibold" style={{ color: colors.plum }}>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Shell page={page} setPage={setPage}>
-      {page === "overview" && <OverviewPage setPage={setPage} />}
-      {page === "members" && <MembersPage />}
-      {page === "events" && <EventsPage />}
-      {page === "posts" && <PostsPage />}
-      {page === "posts-detailed" && <PostsPageDetailed />}
-      {page === "requests" && <RequestsPage />}
-       {page === "messages" && <NotificationSender />}
-      {page === "settings" && <SettingsPage />}
-      {page === "metrics" && <MetricsPage />}
+    <Shell page={page} setPage={setPage} hasSociety={hasSociety}>
+      {hasSociety ? (
+        <>
+          {page === "overview" && <OverviewPage setPage={setPage} />}
+          {page === "members" && <MembersPage />}
+          {page === "events" && <EventsPage />}
+          {page === "posts" && <PostsPage />}
+          {page === "posts-detailed" && <PostsPageDetailed />}
+          {page === "requests" && <RequestsPage />}
+          {page === "messages" && <NotificationSender />}
+          {page === "settings" && <SettingsPage />}
+          {page === "metrics" && <MetricsPage />}
+        </>
+      ) : (
+        <>
+          {page === "overview" && <NoSocietyOverviewPage setPage={setPage} />}
+          {page === "register" && <RegisterSocietyPage />}
+        </>
+      )}
     </Shell>
   );
 }

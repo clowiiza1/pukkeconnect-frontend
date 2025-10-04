@@ -1,15 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { Edit3, Filter, Loader2, RotateCw, Search, Trash2, X } from "lucide-react";
-import { fetchAdminUsers, updateAdminUser, deleteAdminUser } from "@/services/admin.js";
+import { fetchAdminEvents, updateAdminEvent, deleteAdminEvent } from "@/services/admin.js";
 
 const pageSize = 20;
-const roleOptions = [
-  { value: "all", label: "All roles" },
-  { value: "student", label: "Students" },
-  { value: "society_admin", label: "Society admins" },
-  { value: "university_admin", label: "Platform admins" },
-];
 
 function Modal({ open, onClose, title, children, footer, disableClose = false }) {
   return (
@@ -96,10 +90,9 @@ function ConfirmDialog({ open, title, description, confirmLabel = "Confirm", loa
   );
 }
 
-export default function UsersManager({ campusOptions = [] }) {
+export default function EventsManager({ campusOptions = [] }) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
   const [campusFilter, setCampusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [records, setRecords] = useState([]);
@@ -108,20 +101,18 @@ export default function UsersManager({ campusOptions = [] }) {
   const [error, setError] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm] = useState({
-    firstName: "",
-    lastName: "",
-    phoneNumber: "",
+    title: "",
+    description: "",
+    location: "",
     campus: "",
-    major: "",
-    role: "student",
+    eventDate: "",
   });
   const [originalEditForm, setOriginalEditForm] = useState({
-    firstName: "",
-    lastName: "",
-    phoneNumber: "",
+    title: "",
+    description: "",
+    location: "",
     campus: "",
-    major: "",
-    role: "student",
+    eventDate: "",
   });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -149,10 +140,9 @@ export default function UsersManager({ campusOptions = [] }) {
       limit: pageSize,
     };
     if (debouncedSearch) params.q = debouncedSearch;
-    if (roleFilter !== "all") params.role = roleFilter;
     if (campusFilter !== "all") params.campus = campusFilter;
 
-    fetchAdminUsers(params)
+    fetchAdminEvents(params)
       .then((result) => {
         if (cancelled) return;
         setRecords(Array.isArray(result?.data) ? result.data : []);
@@ -163,7 +153,7 @@ export default function UsersManager({ campusOptions = [] }) {
         });
       })
       .catch((err) => {
-        if (!cancelled) setError(err?.message || "Failed to load users");
+        if (!cancelled) setError(err?.message || "Failed to load events");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -172,22 +162,11 @@ export default function UsersManager({ campusOptions = [] }) {
     return () => {
       cancelled = true;
     };
-  }, [debouncedSearch, roleFilter, campusFilter, page, reloadKey]);
+  }, [debouncedSearch, campusFilter, page, reloadKey]);
 
   const totalPages = Math.max(1, Math.ceil((meta.total || 0) / (meta.limit || pageSize)));
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
-
-  const countsByRole = useMemo(() => {
-    return records.reduce(
-      (acc, user) => {
-        acc[user.role] = (acc[user.role] ?? 0) + 1;
-        acc.total += 1;
-        return acc;
-      },
-      { total: 0 }
-    );
-  }, [records]);
 
   const showBanner = (type, message) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -195,15 +174,14 @@ export default function UsersManager({ campusOptions = [] }) {
     timeoutRef.current = setTimeout(() => setBanner(null), 4000);
   };
 
-  const openEdit = (user) => {
-    setEditTarget(user);
+  const openEdit = (event) => {
+    setEditTarget(event);
     const initialForm = {
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      phoneNumber: user.phoneNumber || "",
-      campus: user.campus || "",
-      major: user.major || "",
-      role: user.role || "student",
+      title: event.title || "",
+      description: event.description || "",
+      location: event.location || "",
+      campus: event.campus || "",
+      eventDate: event.startsAt ? new Date(event.startsAt).toISOString().slice(0, 16) : "",
     };
     setEditForm(initialForm);
     setOriginalEditForm(initialForm);
@@ -216,12 +194,11 @@ export default function UsersManager({ campusOptions = [] }) {
 
   const hasFormChanges = () => {
     return (
-      editForm.firstName.trim() !== originalEditForm.firstName.trim() ||
-      editForm.lastName.trim() !== originalEditForm.lastName.trim() ||
-      editForm.phoneNumber.trim() !== originalEditForm.phoneNumber.trim() ||
+      editForm.title.trim() !== originalEditForm.title.trim() ||
+      editForm.description.trim() !== originalEditForm.description.trim() ||
+      editForm.location.trim() !== originalEditForm.location.trim() ||
       editForm.campus !== originalEditForm.campus ||
-      editForm.major.trim() !== originalEditForm.major.trim() ||
-      editForm.role !== originalEditForm.role
+      editForm.eventDate !== originalEditForm.eventDate
     );
   };
 
@@ -230,27 +207,18 @@ export default function UsersManager({ campusOptions = [] }) {
     if (!editTarget) return;
     setSaving(true);
     try {
-      const roleChanged = editForm.role !== originalEditForm.role;
-
-      await updateAdminUser(editTarget.id, {
-        firstName: editForm.firstName,
-        lastName: editForm.lastName,
-        phoneNumber: editForm.phoneNumber,
-        campus: editForm.campus || null,
-        major: editForm.major || null,
-        role: editForm.role,
+      await updateAdminEvent(editTarget.eventId, {
+        title: editForm.title,
+        description: editForm.description,
+        location: editForm.location,
+        startsAt: editForm.eventDate ? new Date(editForm.eventDate).toISOString() : null,
       });
 
-      if (roleChanged) {
-        showBanner("success", "User updated successfully. They must log out and log back in for role change to take effect.");
-      } else {
-        showBanner("success", "User updated successfully");
-      }
-
+      showBanner("success", "Event updated successfully");
       setReloadKey((value) => value + 1);
       closeEdit();
     } catch (err) {
-      showBanner("error", err?.message || "Unable to update user");
+      showBanner("error", err?.message || "Unable to update event");
     } finally {
       setSaving(false);
     }
@@ -260,8 +228,8 @@ export default function UsersManager({ campusOptions = [] }) {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
-      await deleteAdminUser(deleteTarget.id);
-      showBanner("success", "User removed");
+      await deleteAdminEvent(deleteTarget.eventId);
+      showBanner("success", "Event deleted");
       setDeleteTarget(null);
       if (records.length <= 1 && page > 1) {
         setPage((value) => Math.max(1, value - 1));
@@ -269,10 +237,22 @@ export default function UsersManager({ campusOptions = [] }) {
         setReloadKey((value) => value + 1);
       }
     } catch (err) {
-      showBanner("error", err?.message || "Unable to delete user");
+      showBanner("error", err?.message || "Unable to delete event");
     } finally {
       setDeleteLoading(false);
     }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "No date";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
   };
 
   return (
@@ -297,20 +277,6 @@ export default function UsersManager({ campusOptions = [] }) {
             />
           </div>
           <select
-            value={roleFilter}
-            onChange={(event) => {
-              setRoleFilter(event.target.value);
-              setPage(1);
-            }}
-            className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-          >
-            {roleOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
             value={campusFilter}
             onChange={(event) => {
               setCampusFilter(event.target.value);
@@ -329,7 +295,6 @@ export default function UsersManager({ campusOptions = [] }) {
             type="button"
             onClick={() => {
               setSearch("");
-              setRoleFilter("all");
               setCampusFilter("all");
               setPage(1);
             }}
@@ -349,19 +314,9 @@ export default function UsersManager({ campusOptions = [] }) {
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 text-center">
-          <div className="text-2xl font-semibold text-gray-900">{records.length}</div>
-          <div className="text-xs uppercase tracking-wide text-gray-500">Users (page)</div>
-        </div>
-        {roleOptions
-          .filter((option) => option.value !== "all")
-          .map((option) => (
-            <div key={option.value} className="rounded-2xl border border-gray-200 bg-white p-3 text-center">
-              <div className="text-2xl font-semibold text-gray-900">{countsByRole[option.value] ?? 0}</div>
-              <div className="text-xs uppercase tracking-wide text-gray-500">{option.label}</div>
-            </div>
-          ))}
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 text-center">
+        <div className="text-2xl font-semibold text-gray-900">{meta.total || 0}</div>
+        <div className="text-xs uppercase tracking-wide text-gray-500">Total Events</div>
       </div>
 
       {banner && (
@@ -384,10 +339,10 @@ export default function UsersManager({ campusOptions = [] }) {
         <table className="min-w-full text-left text-sm text-gray-700">
           <thead>
             <tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-              <th className="px-4 py-3">User</th>
-              <th className="px-4 py-3">Contact</th>
-              <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">Societies</th>
+              <th className="px-4 py-3">Event</th>
+              <th className="px-4 py-3">Society</th>
+              <th className="px-4 py-3">Date & Location</th>
+              <th className="px-4 py-3">Attendees</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
@@ -405,59 +360,34 @@ export default function UsersManager({ campusOptions = [] }) {
             ) : records.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
-                  No users match the selected filters.
+                  No events match the selected filters.
                 </td>
               </tr>
             ) : (
-              records.map((user) => (
-                <tr key={user.id} className="border-b last:border-0">
+              records.map((event) => (
+                <tr key={event.eventId} className="border-b last:border-0">
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-gray-900">
-                      {user.firstName} {user.lastName}
-                    </div>
-                    <div className="text-xs text-gray-500">{user.universityNumber}</div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    <div>{user.email}</div>
-                    {user.phoneNumber && <div className="text-xs text-gray-500">{user.phoneNumber}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    <div className="mb-1 inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                      {user.role.replace('_', ' ')}
-                    </div>
-                    <div className="text-xs text-gray-500">{user.campus || "No campus"}</div>
+                    <div className="font-semibold text-gray-900">{event.title}</div>
+                    <div className="text-xs text-gray-500 line-clamp-2">{event.description}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {user.societies.length === 0 && user.managedSocieties.length === 0 ? (
-                        <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500">No societies</span>
-                      ) : (
-                        <>
-                          {user.societies.map((society) => (
-                            <span
-                              key={`member-${society.societyId}`}
-                              className="rounded-full bg-[#f3eff9] px-2 py-1 text-xs text-[#5a4695]"
-                            >
-                              {society.name}
-                            </span>
-                          ))}
-                          {user.managedSocieties.map((society) => (
-                            <span
-                              key={`managed-${society.societyId}`}
-                              className="rounded-full bg-[#e8f5ff] px-2 py-1 text-xs text-[#2563eb]"
-                            >
-                              Admin: {society.name}
-                            </span>
-                          ))}
-                        </>
-                      )}
+                    <div className="text-gray-700">{event.society?.name || "Unknown"}</div>
+                    <div className="text-xs text-gray-500">{event.society?.category || ""}</div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    <div>{formatDate(event.startsAt)}</div>
+                    <div className="text-xs text-gray-500">{event.location || "No location"}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                      {event.rsvps || 0} attending
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => openEdit(user)}
+                        onClick={() => openEdit(event)}
                         className="flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
                       >
                         <Edit3 size={14} />
@@ -465,7 +395,7 @@ export default function UsersManager({ campusOptions = [] }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDeleteTarget(user)}
+                        onClick={() => setDeleteTarget(event)}
                         className="flex items-center gap-1 rounded-xl bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 ring-1 ring-red-200 hover:bg-red-100"
                       >
                         <Trash2 size={14} />
@@ -507,7 +437,7 @@ export default function UsersManager({ campusOptions = [] }) {
       <Modal
         open={Boolean(editTarget)}
         onClose={closeEdit}
-        title="Edit user"
+        title="Edit event"
         footer={(
           <div className="flex justify-end gap-2">
             <button
@@ -520,45 +450,42 @@ export default function UsersManager({ campusOptions = [] }) {
             </button>
             <button
               type="submit"
-              form="admin-edit-user"
+              form="admin-edit-event"
               className="flex items-center gap-2 rounded-xl bg-[#6a509b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5b4586] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={saving || !editForm.firstName.trim() || !editForm.lastName.trim() || !hasFormChanges()}
+              disabled={saving || !editForm.title.trim() || !hasFormChanges()}
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : "Save changes"}
             </button>
           </div>
         )}
       >
-        <form id="admin-edit-user" className="space-y-4" onSubmit={handleEditSubmit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">First name</label>
-              <input
-                type="text"
-                value={editForm.firstName}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, firstName: event.target.value }))}
-                required
-                className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last name</label>
-              <input
-                type="text"
-                value={editForm.lastName}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, lastName: event.target.value }))}
-                required
-                className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-              />
-            </div>
+        <form id="admin-edit-event" className="space-y-4" onSubmit={handleEditSubmit}>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Title</label>
+            <input
+              type="text"
+              value={editForm.title}
+              onChange={(event) => setEditForm((prev) => ({ ...prev, title: event.target.value }))}
+              required
+              className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Description</label>
+            <textarea
+              value={editForm.description}
+              onChange={(event) => setEditForm((prev) => ({ ...prev, description: event.target.value }))}
+              rows={3}
+              className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
+            />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Phone number</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Location</label>
               <input
-                type="tel"
-                value={editForm.phoneNumber}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
+                type="text"
+                value={editForm.location}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, location: event.target.value }))}
                 className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
               />
             </div>
@@ -579,37 +506,21 @@ export default function UsersManager({ campusOptions = [] }) {
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Major</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Event Date</label>
             <input
-              type="text"
-              value={editForm.major}
-              onChange={(event) => setEditForm((prev) => ({ ...prev, major: event.target.value }))}
+              type="datetime-local"
+              value={editForm.eventDate}
+              onChange={(event) => setEditForm((prev) => ({ ...prev, eventDate: event.target.value }))}
               className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
             />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Role</label>
-            <select
-              value={editForm.role}
-              onChange={(event) => setEditForm((prev) => ({ ...prev, role: event.target.value }))}
-              className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-            >
-              {roleOptions
-                .filter((role) => role.value !== "all")
-                .map((role) => (
-                  <option key={role.value} value={role.value}>
-                    {role.label}
-                  </option>
-                ))}
-            </select>
           </div>
         </form>
       </Modal>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Delete user"
-        description={`Are you sure you want to delete ${deleteTarget?.firstName ?? "this user"}? This action cannot be undone.`}
+        title="Delete event"
+        description={`Are you sure you want to delete "${deleteTarget?.title ?? "this event"}"? This action cannot be undone.`}
         confirmLabel="Delete"
         loading={deleteLoading}
         onConfirm={handleDelete}

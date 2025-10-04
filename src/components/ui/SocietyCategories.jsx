@@ -67,7 +67,7 @@ export default function SocietyCategories({ goAuth }) {
       return;
     }
     if (user.role === "student") {
-      navigate("/student/societies");
+      navigate("/student", { state: { page: "explore" } });
     } else {
       navigate("/"); // fallback
     }

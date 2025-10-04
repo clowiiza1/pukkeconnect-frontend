@@ -1,5 +1,6 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEnvelope, faPhone, faLocationDot } from "@fortawesome/free-solid-svg-icons";
+import { Link } from "react-router-dom";
 
 export default function Footer() {
   return (
@@ -39,10 +40,10 @@ export default function Footer() {
         <div>
           <h3 className="font-semibold text-lg mb-4">Platform</h3>
           <ul className="space-y-2 text-sm">
-            <li><a href="#hero" className="hover:text-lightgr">Home Page</a></li>
-            <li><a href="#about-us" className="hover:text-lightgr">About Pukke-Connect</a></li>
-            <li><a href="#societies-section" className="hover:text-lightgr">Society Categories</a></li>
-            <li><a href="#" className="hover:text-lightgr">FAQ</a></li>
+            <li><Link to="/" className="hover:text-lightgr">Home Page</Link></li>
+            <li><Link to="/about" className="hover:text-lightgr">About Pukke-Connect</Link></li>
+            <li><a href="/#societies-section" className="hover:text-lightgr">Society Categories</a></li>
+            <li><a href="/#faq" className="hover:text-lightgr">FAQ</a></li>
           </ul>
         </div>
 
@@ -50,10 +51,10 @@ export default function Footer() {
         <div>
           <h3 className="font-semibold text-lg mb-4">Support</h3>
           <ul className="space-y-2 text-sm">
-            <li><a href="#" className="hover:text-lightgr">Help Center</a></li>
-            <li><a href="#" className="hover:text-lightgr">Contact Us</a></li>
-            <li><a href="#" className="hover:text-lightgr">Report Issue</a></li>
-            <li><a href="#" className="hover:text-lightgr">Community Guidelines</a></li>
+            <li><Link to="/about" className="hover:text-lightgr">Help Center</Link></li>
+            <li><Link to="/contact" className="hover:text-lightgr">Contact Us</Link></li>
+            <li><Link to="/contact" className="hover:text-lightgr">Report Issue</Link></li>
+            <li><Link to="/about" className="hover:text-lightgr">Community Guidelines</Link></li>
           </ul>
         </div>
 
@@ -61,10 +62,10 @@ export default function Footer() {
         <div>
           <h3 className="font-semibold text-lg mb-4">Legal</h3>
           <ul className="space-y-2 text-sm">
-            <li><a href="#" className="hover:text-lightgr">Privacy Policy</a></li>
-            <li><a href="#" className="hover:text-lightgr">Terms of Service</a></li>
-            <li><a href="#" className="hover:text-lightgr">Cookie Policy</a></li>
-            <li><a href="#" className="hover:text-lightgr">Data Protection</a></li>
+            <li><Link to="/terms" className="hover:text-lightgr">Privacy Policy</Link></li>
+            <li><Link to="/terms" className="hover:text-lightgr">Terms of Service</Link></li>
+            <li><Link to="/terms" className="hover:text-lightgr">Cookie Policy</Link></li>
+            <li><Link to="/terms" className="hover:text-lightgr">Data Protection</Link></li>
           </ul>
         </div>
       </div>

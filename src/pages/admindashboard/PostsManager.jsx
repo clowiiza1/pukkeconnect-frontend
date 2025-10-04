@@ -1,15 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { Edit3, Filter, Loader2, RotateCw, Search, Trash2, X } from "lucide-react";
-import { fetchAdminUsers, updateAdminUser, deleteAdminUser } from "@/services/admin.js";
+import { fetchAdminPosts, updateAdminPost, deleteAdminPost } from "@/services/admin.js";
 
 const pageSize = 20;
-const roleOptions = [
-  { value: "all", label: "All roles" },
-  { value: "student", label: "Students" },
-  { value: "society_admin", label: "Society admins" },
-  { value: "university_admin", label: "Platform admins" },
-];
 
 function Modal({ open, onClose, title, children, footer, disableClose = false }) {
   return (
@@ -96,11 +90,9 @@ function ConfirmDialog({ open, title, description, confirmLabel = "Confirm", loa
   );
 }
 
-export default function UsersManager({ campusOptions = [] }) {
+export default function PostsManager() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [campusFilter, setCampusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [records, setRecords] = useState([]);
   const [meta, setMeta] = useState({ total: 0, limit: pageSize, page: 1 });
@@ -108,20 +100,10 @@ export default function UsersManager({ campusOptions = [] }) {
   const [error, setError] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm] = useState({
-    firstName: "",
-    lastName: "",
-    phoneNumber: "",
-    campus: "",
-    major: "",
-    role: "student",
+    content: "",
   });
   const [originalEditForm, setOriginalEditForm] = useState({
-    firstName: "",
-    lastName: "",
-    phoneNumber: "",
-    campus: "",
-    major: "",
-    role: "student",
+    content: "",
   });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -149,10 +131,8 @@ export default function UsersManager({ campusOptions = [] }) {
       limit: pageSize,
     };
     if (debouncedSearch) params.q = debouncedSearch;
-    if (roleFilter !== "all") params.role = roleFilter;
-    if (campusFilter !== "all") params.campus = campusFilter;
 
-    fetchAdminUsers(params)
+    fetchAdminPosts(params)
       .then((result) => {
         if (cancelled) return;
         setRecords(Array.isArray(result?.data) ? result.data : []);
@@ -163,7 +143,7 @@ export default function UsersManager({ campusOptions = [] }) {
         });
       })
       .catch((err) => {
-        if (!cancelled) setError(err?.message || "Failed to load users");
+        if (!cancelled) setError(err?.message || "Failed to load posts");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -172,22 +152,11 @@ export default function UsersManager({ campusOptions = [] }) {
     return () => {
       cancelled = true;
     };
-  }, [debouncedSearch, roleFilter, campusFilter, page, reloadKey]);
+  }, [debouncedSearch, page, reloadKey]);
 
   const totalPages = Math.max(1, Math.ceil((meta.total || 0) / (meta.limit || pageSize)));
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
-
-  const countsByRole = useMemo(() => {
-    return records.reduce(
-      (acc, user) => {
-        acc[user.role] = (acc[user.role] ?? 0) + 1;
-        acc.total += 1;
-        return acc;
-      },
-      { total: 0 }
-    );
-  }, [records]);
 
   const showBanner = (type, message) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -195,15 +164,10 @@ export default function UsersManager({ campusOptions = [] }) {
     timeoutRef.current = setTimeout(() => setBanner(null), 4000);
   };
 
-  const openEdit = (user) => {
-    setEditTarget(user);
+  const openEdit = (post) => {
+    setEditTarget(post);
     const initialForm = {
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      phoneNumber: user.phoneNumber || "",
-      campus: user.campus || "",
-      major: user.major || "",
-      role: user.role || "student",
+      content: post.content || "",
     };
     setEditForm(initialForm);
     setOriginalEditForm(initialForm);
@@ -215,14 +179,7 @@ export default function UsersManager({ campusOptions = [] }) {
   };
 
   const hasFormChanges = () => {
-    return (
-      editForm.firstName.trim() !== originalEditForm.firstName.trim() ||
-      editForm.lastName.trim() !== originalEditForm.lastName.trim() ||
-      editForm.phoneNumber.trim() !== originalEditForm.phoneNumber.trim() ||
-      editForm.campus !== originalEditForm.campus ||
-      editForm.major.trim() !== originalEditForm.major.trim() ||
-      editForm.role !== originalEditForm.role
-    );
+    return editForm.content.trim() !== originalEditForm.content.trim();
   };
 
   const handleEditSubmit = async (event) => {
@@ -230,27 +187,15 @@ export default function UsersManager({ campusOptions = [] }) {
     if (!editTarget) return;
     setSaving(true);
     try {
-      const roleChanged = editForm.role !== originalEditForm.role;
-
-      await updateAdminUser(editTarget.id, {
-        firstName: editForm.firstName,
-        lastName: editForm.lastName,
-        phoneNumber: editForm.phoneNumber,
-        campus: editForm.campus || null,
-        major: editForm.major || null,
-        role: editForm.role,
+      await updateAdminPost(editTarget.id, {
+        content: editForm.content,
       });
 
-      if (roleChanged) {
-        showBanner("success", "User updated successfully. They must log out and log back in for role change to take effect.");
-      } else {
-        showBanner("success", "User updated successfully");
-      }
-
+      showBanner("success", "Post updated successfully");
       setReloadKey((value) => value + 1);
       closeEdit();
     } catch (err) {
-      showBanner("error", err?.message || "Unable to update user");
+      showBanner("error", err?.message || "Unable to update post");
     } finally {
       setSaving(false);
     }
@@ -260,8 +205,8 @@ export default function UsersManager({ campusOptions = [] }) {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
-      await deleteAdminUser(deleteTarget.id);
-      showBanner("success", "User removed");
+      await deleteAdminPost(deleteTarget.id);
+      showBanner("success", "Post deleted");
       setDeleteTarget(null);
       if (records.length <= 1 && page > 1) {
         setPage((value) => Math.max(1, value - 1));
@@ -269,10 +214,22 @@ export default function UsersManager({ campusOptions = [] }) {
         setReloadKey((value) => value + 1);
       }
     } catch (err) {
-      showBanner("error", err?.message || "Unable to delete user");
+      showBanner("error", err?.message || "Unable to delete post");
     } finally {
       setDeleteLoading(false);
     }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "Unknown";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
   };
 
   return (
@@ -296,41 +253,10 @@ export default function UsersManager({ campusOptions = [] }) {
               className="w-full rounded-2xl border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
             />
           </div>
-          <select
-            value={roleFilter}
-            onChange={(event) => {
-              setRoleFilter(event.target.value);
-              setPage(1);
-            }}
-            className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-          >
-            {roleOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={campusFilter}
-            onChange={(event) => {
-              setCampusFilter(event.target.value);
-              setPage(1);
-            }}
-            className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-          >
-            <option value="all">All campuses</option>
-            {campusOptions.map((campus) => (
-              <option key={campus} value={campus}>
-                {campus}
-              </option>
-            ))}
-          </select>
           <button
             type="button"
             onClick={() => {
               setSearch("");
-              setRoleFilter("all");
-              setCampusFilter("all");
               setPage(1);
             }}
             className="rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
@@ -349,19 +275,9 @@ export default function UsersManager({ campusOptions = [] }) {
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 text-center">
-          <div className="text-2xl font-semibold text-gray-900">{records.length}</div>
-          <div className="text-xs uppercase tracking-wide text-gray-500">Users (page)</div>
-        </div>
-        {roleOptions
-          .filter((option) => option.value !== "all")
-          .map((option) => (
-            <div key={option.value} className="rounded-2xl border border-gray-200 bg-white p-3 text-center">
-              <div className="text-2xl font-semibold text-gray-900">{countsByRole[option.value] ?? 0}</div>
-              <div className="text-xs uppercase tracking-wide text-gray-500">{option.label}</div>
-            </div>
-          ))}
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 text-center">
+        <div className="text-2xl font-semibold text-gray-900">{meta.total || 0}</div>
+        <div className="text-xs uppercase tracking-wide text-gray-500">Total Posts</div>
       </div>
 
       {banner && (
@@ -384,10 +300,10 @@ export default function UsersManager({ campusOptions = [] }) {
         <table className="min-w-full text-left text-sm text-gray-700">
           <thead>
             <tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-              <th className="px-4 py-3">User</th>
-              <th className="px-4 py-3">Contact</th>
-              <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">Societies</th>
+              <th className="px-4 py-3">Post</th>
+              <th className="px-4 py-3">Author</th>
+              <th className="px-4 py-3">Society</th>
+              <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
@@ -405,59 +321,36 @@ export default function UsersManager({ campusOptions = [] }) {
             ) : records.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
-                  No users match the selected filters.
+                  No posts match the selected filters.
                 </td>
               </tr>
             ) : (
-              records.map((user) => (
-                <tr key={user.id} className="border-b last:border-0">
+              records.map((post) => (
+                <tr key={post.id} className="border-b last:border-0">
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-gray-900">
-                      {user.firstName} {user.lastName}
-                    </div>
-                    <div className="text-xs text-gray-500">{user.universityNumber}</div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    <div>{user.email}</div>
-                    {user.phoneNumber && <div className="text-xs text-gray-500">{user.phoneNumber}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    <div className="mb-1 inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                      {user.role.replace('_', ' ')}
-                    </div>
-                    <div className="text-xs text-gray-500">{user.campus || "No campus"}</div>
+                    <div className="max-w-md text-gray-700 line-clamp-3">{post.content}</div>
+                    {post.imageUrl && (
+                      <div className="mt-1 text-xs text-gray-500">📷 Has image</div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {user.societies.length === 0 && user.managedSocieties.length === 0 ? (
-                        <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500">No societies</span>
-                      ) : (
-                        <>
-                          {user.societies.map((society) => (
-                            <span
-                              key={`member-${society.societyId}`}
-                              className="rounded-full bg-[#f3eff9] px-2 py-1 text-xs text-[#5a4695]"
-                            >
-                              {society.name}
-                            </span>
-                          ))}
-                          {user.managedSocieties.map((society) => (
-                            <span
-                              key={`managed-${society.societyId}`}
-                              className="rounded-full bg-[#e8f5ff] px-2 py-1 text-xs text-[#2563eb]"
-                            >
-                              Admin: {society.name}
-                            </span>
-                          ))}
-                        </>
-                      )}
+                    <div className="text-gray-700">
+                      {post.author?.firstName} {post.author?.lastName}
                     </div>
+                    <div className="text-xs text-gray-500">{post.author?.universityNumber}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-gray-700">{post.society?.name || "Unknown"}</div>
+                    <div className="text-xs text-gray-500">{post.society?.category || ""}</div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    <div className="text-xs">{formatDate(post.createdAt)}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => openEdit(user)}
+                        onClick={() => openEdit(post)}
                         className="flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
                       >
                         <Edit3 size={14} />
@@ -465,7 +358,7 @@ export default function UsersManager({ campusOptions = [] }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDeleteTarget(user)}
+                        onClick={() => setDeleteTarget(post)}
                         className="flex items-center gap-1 rounded-xl bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 ring-1 ring-red-200 hover:bg-red-100"
                       >
                         <Trash2 size={14} />
@@ -507,7 +400,7 @@ export default function UsersManager({ campusOptions = [] }) {
       <Modal
         open={Boolean(editTarget)}
         onClose={closeEdit}
-        title="Edit user"
+        title="Edit post"
         footer={(
           <div className="flex justify-end gap-2">
             <button
@@ -520,96 +413,44 @@ export default function UsersManager({ campusOptions = [] }) {
             </button>
             <button
               type="submit"
-              form="admin-edit-user"
+              form="admin-edit-post"
               className="flex items-center gap-2 rounded-xl bg-[#6a509b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5b4586] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={saving || !editForm.firstName.trim() || !editForm.lastName.trim() || !hasFormChanges()}
+              disabled={saving || !editForm.content.trim() || !hasFormChanges()}
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : "Save changes"}
             </button>
           </div>
         )}
       >
-        <form id="admin-edit-user" className="space-y-4" onSubmit={handleEditSubmit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">First name</label>
-              <input
-                type="text"
-                value={editForm.firstName}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, firstName: event.target.value }))}
-                required
-                className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last name</label>
-              <input
-                type="text"
-                value={editForm.lastName}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, lastName: event.target.value }))}
-                required
-                className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-              />
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Phone number</label>
-              <input
-                type="tel"
-                value={editForm.phoneNumber}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
-                className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Campus</label>
-              <select
-                value={editForm.campus}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, campus: event.target.value }))}
-                className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-              >
-                <option value="">Unspecified</option>
-                {campusOptions.map((campus) => (
-                  <option key={campus} value={campus}>
-                    {campus}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+        <form id="admin-edit-post" className="space-y-4" onSubmit={handleEditSubmit}>
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Major</label>
-            <input
-              type="text"
-              value={editForm.major}
-              onChange={(event) => setEditForm((prev) => ({ ...prev, major: event.target.value }))}
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Content</label>
+            <textarea
+              value={editForm.content}
+              onChange={(event) => setEditForm((prev) => ({ ...prev, content: event.target.value }))}
+              required
+              rows={6}
               className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
             />
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Role</label>
-            <select
-              value={editForm.role}
-              onChange={(event) => setEditForm((prev) => ({ ...prev, role: event.target.value }))}
-              className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#ac98cd]"
-            >
-              {roleOptions
-                .filter((role) => role.value !== "all")
-                .map((role) => (
-                  <option key={role.value} value={role.value}>
-                    {role.label}
-                  </option>
-                ))}
-            </select>
-          </div>
+          {editTarget?.imageUrl && (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Image</label>
+              <img
+                src={editTarget.imageUrl}
+                alt="Post"
+                className="max-h-48 rounded-lg object-cover"
+              />
+              <p className="text-xs text-gray-500">Note: Image cannot be changed, only content can be edited.</p>
+            </div>
+          )}
         </form>
       </Modal>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Delete user"
-        description={`Are you sure you want to delete ${deleteTarget?.firstName ?? "this user"}? This action cannot be undone.`}
+        title="Delete post"
+        description="Are you sure you want to delete this post? This action cannot be undone."
         confirmLabel="Delete"
         loading={deleteLoading}
         onConfirm={handleDelete}

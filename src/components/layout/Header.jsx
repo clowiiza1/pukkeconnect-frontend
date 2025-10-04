@@ -58,22 +58,17 @@ export default function Header() {
           {/* === Desktop Nav Bar with FontAwesome icons === */}
           <nav className="hidden md:flex items-center gap-2 ">
             <NavItem to="/">
+              <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
               <span>Home</span>
             </NavItem>
 
             <NavItem to="/about">
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
               <span>About</span>
             </NavItem>
 
-            <NavItem to="/societies">
-              <span>Societies</span>
-            </NavItem>
-
-            <NavItem to="/FAQ">
-              <span>FAQ</span>
-            </NavItem>
-
             <NavItem to="/contact">
+              <FontAwesomeIcon icon={faEnvelope} className="h-4 w-4" />
               <span>Contact</span>
             </NavItem>
           
@@ -130,12 +125,23 @@ export default function Header() {
       {open && (
         <div className="md:hidden  bg-white">
           <div className="mx-auto max-w-7xl px-4 py-3 space-y-2">
-            <NavLink to="/" className="block rounded px-2 py-2 hover:text-white hover:bg-softlav">Home</NavLink>
-            <NavLink to="/about" className="block rounded px-2 py-2 hover:text-white hover:bg-softlav">About</NavLink>
-            <NavLink to="/societies" className="block rounded px-2 py-2 hover:text-white hover:bg-softlav">Society Categories</NavLink>
-            <NavLink to="/contact" className="block rounded px-2 py-2 hover:text-white hover:bg-softlav">Contact</NavLink>
+            <NavLink to="/" className="block rounded px-2 py-2 hover:text-white hover:bg-softlav flex items-center gap-2">
+              <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
+              Home
+            </NavLink>
+            <NavLink to="/about" className="block rounded px-2 py-2 hover:text-white hover:bg-softlav flex items-center gap-2">
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+              About
+            </NavLink>
+            <NavLink to="/contact" className="block rounded px-2 py-2 hover:text-white hover:bg-softlav flex items-center gap-2">
+              <FontAwesomeIcon icon={faEnvelope} className="h-4 w-4" />
+              Contact
+            </NavLink>
             {isAuthenticated && (
-              <NavLink to={dashboardHref} className="block rounded px-2 py-2 hover:bg-lightgr">Dashboard</NavLink>
+              <NavLink to={dashboardHref} className="block rounded px-2 py-2 hover:bg-lightgr flex items-center gap-2">
+                <FontAwesomeIcon icon={faPager} className="h-4 w-4" />
+                Dashboard
+              </NavLink>
             )}
             <div className="pt-3 flex gap-2">
               {!isAuthenticated ? (
