@@ -1,10 +1,12 @@
 // authService.js
 import axios from 'axios';
 
+const API_ROOT = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
 const API = axios.create({
-  baseURL: 'http://localhost:4000/api/auth', // adjust if your API root differs
+  baseURL: `${API_ROOT}/auth`,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
