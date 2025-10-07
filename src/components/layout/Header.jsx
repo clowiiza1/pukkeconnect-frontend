@@ -14,6 +14,7 @@ import {
   faBookOpen,
   faPager,
 } from "@fortawesome/free-solid-svg-icons";
+import brandIcon from "@/assets/icon1.png";
 
 
 function NavItem({ to, children }) {
@@ -48,7 +49,7 @@ export default function Header() {
           {/* === Logo ==== */}
           <Link to="/" className="flex items-center gap-2">
             <img
-              src="/src/assets/icon1.png"
+              src={brandIcon}
               alt="PukkeConnect"
               className="h-14 w-14 rounded-full ring-1 ring-muted/40"
             />

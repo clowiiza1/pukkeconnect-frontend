@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { normalizeRole, roleToDashboardPath } from "@/context/authUtils";
 import { useNavigate } from "react-router-dom";
 import AuthAPIs from "@/services/AuthAPIs.jsx";
+import logo from "@/assets/logo.png";
 
 export default function LoginModal({ open, onClose, goSignup, goForgot }) {
   const { login } = useAuth();
@@ -188,7 +189,7 @@ export default function LoginModal({ open, onClose, goSignup, goForgot }) {
 
           {/* Logo */}
           <div className="flex justify-center mb-4">
-            <img src="/src/assets/logo.png" alt="PukkeConnect Logo" className="h-24 w-auto" />
+            <img src={logo} alt="PukkeConnect Logo" className="h-24 w-auto" />
           </div>
 
           {/* Title */}

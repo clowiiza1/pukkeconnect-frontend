@@ -8,6 +8,7 @@ import photo1 from "@/assets/photo1.jpg";
 import photo2 from "@/assets/photo2.jpg";
 import photo3 from "@/assets/photo3.jpg";
 import aws from "@/assets/aws.jpeg";
+import brandIcon from "@/assets/icon1.png";
 // Society Admin Services
 import {
   getSocietyDetails,
@@ -278,7 +279,7 @@ function Shell({ page, setPage, children, hasSociety }) {
             className="flex items-center gap-2 rounded-xl px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mediumpur/70"
           >
             <img
-              src="src/assets/icon1.png"
+              src={brandIcon}
               alt="PukkeConnect Logo"
               className="size-10 rounded-xl object-contain flex-shrink-0"
             />

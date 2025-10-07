@@ -1,42 +1,48 @@
 import Slider from "react-slick";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import academicsImg from "@/assets/Academics.jpg";
+import communityServiceImg from "@/assets/CommunityService.jpg";
+import sportsImg from "@/assets/Sports.png";
+import musicImg from "@/assets/Music.jpeg";
+import artsImg from "@/assets/Arts.jpeg";
+import techImg from "@/assets/Tech.jpg";
 
 const categories = [
   {
     title: "Academic Societies",
     description: "Enhance your studies with discipline-specific groups and academic excellence clubs.",
-    img: "/src/assets/Academics.jpg",
+    img: academicsImg,
     popular: ["Engineering Society", "Business Club", "CS&IS Students Association"],
   },
   {
     title: "Community Service",
     description: "Make a difference through volunteer work and community outreach programs.",
-    img: "/src/assets/CommunityService.jpg",
+    img: communityServiceImg,
     popular: ["Community Outreach", "Environmental Action", "Charity Drive"],
   },
   {
     title: "Sports & Recreation",
     description: "Stay active and competitive with various sports clubs and fitness groups.",
-    img: "/src/assets/Sports.png",
+    img: sportsImg,
     popular: ["Rugby Club", "Tennis Society", "Fitness Enthusiasts"],
   },
   {
     title: "Music & Performance",
     description: "Showcase your talents in music, dance, and performing arts.",
-    img: "/src/assets/Music.jpeg",
+    img: musicImg,
     popular: ["Choir Society", "Dance Club", "Music Ensemble"],
   },
   {
     title: "Arts & Culture",
     description: "Express yourself through creative and cultural organizations.",
-    img: "/src/assets/Arts.jpeg",
+    img: artsImg,
     popular: ["Drama Society", "Photography Club", "Cultural Heritage"],
   },
   {
     title: "Technology & Innovation",
     description: "Explore cutting-edge technology and innovation with tech-focused societies.",
-    img: "/src/assets/Tech.jpg",
+    img: techImg,
     popular: ["Coding Club", "Robotics Society", "Tech Entrepreneurs"],
   },
 ];

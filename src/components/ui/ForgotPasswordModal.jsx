@@ -1,5 +1,6 @@
 import { Dialog } from "@headlessui/react";
 import { useState, useEffect } from "react";
+import logo from "@/assets/logo.png";
 
 export default function ForgotPasswordModal({ open, onClose }) {
   const [email, setEmail] = useState("");
@@ -53,7 +54,7 @@ export default function ForgotPasswordModal({ open, onClose }) {
 
           {/* Logo */}
           <div className="flex justify-center mb-3">
-            <img src="/src/assets/logo.png" alt="PukkeConnect Logo" className="h-16 w-auto" />
+            <img src={logo} alt="PukkeConnect Logo" className="h-16 w-auto" />
           </div>
 
           {/* Title */}
