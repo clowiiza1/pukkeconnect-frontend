@@ -2,6 +2,10 @@
 import { motion } from "framer-motion";
 import { Star, TrendingUp, Smile } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import photo4 from "@/assets/photo4.jpg";
+import photo1 from "@/assets/photo1.jpg";
+import photo2 from "@/assets/photo2.jpg";
+import photo3 from "@/assets/photo3.jpg";
 
 export default function About({ goAuth }) {
   const navigate = useNavigate();
@@ -14,7 +18,7 @@ export default function About({ goAuth }) {
           {/* Row 1 */}
           <div className="flex gap-6">
             <motion.img
-              src="/src/assets/photo4.jpg"
+              src={photo4}
               alt="Society engagement"
               className="rounded-2xl w-1/2 object-cover shadow-md"
               initial={{ opacity: 0, y: 40 }}
@@ -32,7 +36,7 @@ export default function About({ goAuth }) {
                 Students matched with societies successfully.
               </p>
               <div className="flex mt-3 -space-x-2">
-                {["/src/assets/photo1.jpg", "/src/assets/photo2.jpg", "/src/assets/photo3.jpg"].map(
+                {[photo1, photo2, photo3].map(
                   (src, i) => (
                     <img
                       key={i}

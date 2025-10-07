@@ -43,6 +43,7 @@ import { listInterests, getStudentInterests, setStudentInterests } from "@/servi
 import { fetchMatchmakerQuiz, submitMatchmakerQuizAnswers } from "@/services/quizzes";
 import { listNotifications, markNotificationSeen } from "@/services/notifications";
 import { getPostsFeed, togglePostLike } from "@/services/posts";
+import brandIcon from "@/assets/icon1.png";
 
 // Brand palette
 const colors = {
@@ -207,7 +208,7 @@ function Shell({ page, setPage, children, student, studentLoading }) {
             className="flex items-center gap-2 rounded-xl px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-mediumpur/70"
           >
             <img
-              src="src/assets/icon1.png"
+              src={brandIcon}
               alt="PukkeConnect Logo"
               className="size-10 rounded-xl object-contain flex-shrink-0"
               style={{

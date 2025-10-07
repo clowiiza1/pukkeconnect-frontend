@@ -31,6 +31,7 @@ import AnnouncementsPage from "./AnnouncementsPage.jsx";
 import { api, asApiError } from "@/services/apis.jsx";
 import { approveSociety, rejectSociety } from "@/services/admin.js";
 import { useAuth } from "@/context/AuthContext";
+import brandIcon from "@/assets/icon1.png";
 
 // Brand palette
 const colors = {
@@ -82,7 +83,7 @@ function Shell({ page, setPage, children }) {
             aria-label="Go to PukkeConnect home"
           >
             <img
-              src="src/assets/icon1.png"
+              src={brandIcon}
               alt="PukkeConnect Logo"
               className="size-10 rounded-xl object-contain flex-shrink-0"
             />
