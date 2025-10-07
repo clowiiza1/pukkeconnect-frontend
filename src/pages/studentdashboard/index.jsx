@@ -17,6 +17,8 @@ import {
   Inbox,
   Home,
   LogOut,
+  MessageSquare,
+  Heart,
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
@@ -40,6 +42,7 @@ import {
 import { listInterests, getStudentInterests, setStudentInterests } from "@/services/interests";
 import { fetchMatchmakerQuiz, submitMatchmakerQuizAnswers } from "@/services/quizzes";
 import { listNotifications, markNotificationSeen } from "@/services/notifications";
+import { getPostsFeed, togglePostLike } from "@/services/posts";
 
 // Brand palette
 const colors = {
@@ -160,6 +163,7 @@ function Shell({ page, setPage, children, student, studentLoading }) {
     { key: "profile", label: "My Profile", icon: <User size={18} /> },
     { key: "explore", label: "Explore", icon: <Compass size={18} /> },
     { key: "details", label: "Societies", icon: <Sparkles size={18} /> },
+    { key: "posts", label: "Posts", icon: <MessageSquare size={18} /> },
     { key: "quiz", label: "Quiz", icon: <Inbox size={18} /> },
     { key: "notifications", label: "Notifications", icon: <Bell size={18} /> },
     { key: "events", label: "Events", icon: <CalendarDays size={18} /> },
@@ -3716,6 +3720,225 @@ function EventCard({ event, onToggleRsvp }) {
   );
 }
 
+// Posts Page
+function PostsPage({ loading, posts = [], error, onToggleLike }) {
+  const [query, setQuery] = useState("");
+  const [selectedSociety, setSelectedSociety] = useState("all");
+
+  const societyOptions = useMemo(() => {
+    const set = new Set();
+    posts.forEach((post) => {
+      if (post?.society?.name) set.add(post.society.name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [posts]);
+
+  useEffect(() => {
+    if (selectedSociety === "all") return;
+    if (!societyOptions.some((name) => name === selectedSociety)) {
+      setSelectedSociety("all");
+    }
+  }, [societyOptions, selectedSociety]);
+
+  const filteredPosts = useMemo(() => {
+    const lowered = query.trim().toLowerCase();
+    return posts.filter((post) => {
+      const matchesSociety =
+        selectedSociety === "all"
+          ? true
+          : (post?.society?.name ?? "").toLowerCase() === selectedSociety.toLowerCase();
+
+      const matchesQuery =
+        !lowered ||
+        [post?.content, post?.society?.name, post?.author?.firstName, post?.author?.lastName]
+          .filter(Boolean)
+          .some((field) => field.toLowerCase().includes(lowered));
+
+      return matchesSociety && matchesQuery;
+    });
+  }, [posts, query, selectedSociety]);
+
+  const showEmpty = !loading && posts.length === 0;
+  const showNoResults = !loading && posts.length > 0 && filteredPosts.length === 0;
+
+  const handleClearFilters = useCallback(() => {
+    setQuery("");
+    setSelectedSociety("all");
+  }, []);
+
+  return (
+    <Card
+      title="Society Posts"
+      subtitle="Stay updated with posts from your societies."
+    >
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px] md:min-w-[280px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60" size={18} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search posts or societies…"
+            className="w-full rounded-2xl px-4 py-2 pl-9 outline-none focus:ring-2 focus:ring-lilac"
+            style={{ background: colors.mist }}
+          />
+        </div>
+        <select
+          value={selectedSociety}
+          onChange={(event) => setSelectedSociety(event.target.value)}
+          className="appearance-none cursor-pointer rounded-2xl px-3 py-2 outline-none focus:ring-2 focus:ring-lilac"
+          style={{ background: colors.mist }}
+        >
+          <option value="all">All societies</option>
+          {societyOptions.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {!loading && error && posts.length > 0 && (
+        <div className="mb-4 rounded-3xl border border-dashed border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Couldn't refresh posts right now. Showing the latest information we have.
+        </div>
+      )}
+
+      {loading ? (
+        <PostsSkeleton />
+      ) : showEmpty ? (
+        <div className="rounded-3xl border border-dashed border-mediumpur/40 bg-white p-8 text-center">
+          <p className="text-sm font-medium text-dark">No posts to show yet.</p>
+          <p className="mt-1 text-sm text-dark/70">
+            Join societies to see their posts and updates.
+          </p>
+        </div>
+      ) : showNoResults ? (
+        <div className="space-y-3 rounded-3xl border border-dashed border-mediumpur/40 bg-white p-8 text-center">
+          <div className="text-sm font-medium text-dark">No posts match your filters.</div>
+          <div className="text-sm text-dark/70">Try adjusting your search or reset filters.</div>
+          {(query || selectedSociety !== "all") && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="rounded-2xl px-4 py-2 text-sm text-white transition-opacity hover:opacity-90"
+              style={{ background: colors.lilac }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredPosts.map((post) => (
+            <PostCard key={post.postId} post={post} onToggleLike={onToggleLike} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function PostsSkeleton() {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div
+          key={index}
+          className="overflow-hidden rounded-3xl border border-mediumpur/20 bg-white shadow-sm p-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+              <div className="h-16 w-full bg-gray-200 rounded animate-pulse mt-2" />
+              <div className="flex gap-2 mt-2">
+                <div className="h-8 w-20 bg-gray-200 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PostCard({ post, onToggleLike }) {
+  const [isLiking, setIsLiking] = useState(false);
+
+  const handleLike = async () => {
+    if (isLiking) return;
+    setIsLiking(true);
+    try {
+      await onToggleLike?.(post.postId, post.likedByMe);
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const authorName = [post?.author?.firstName, post?.author?.lastName]
+    .filter(Boolean)
+    .join(" ") || "Unknown";
+
+  const createdDate = post?.createdAt ? new Date(post.createdAt) : null;
+  const timeAgo = createdDate
+    ? createdDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+
+  return (
+    <div className="overflow-hidden rounded-3xl border border-mediumpur/20 bg-white shadow-sm p-4">
+      <div className="flex items-start gap-3">
+        <div
+          className="h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold"
+          style={{ background: colors.lilac }}
+        >
+          {authorName.charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="font-semibold text-dark">{authorName}</div>
+            {post?.society?.name && (
+              <>
+                <span className="text-dark/40">•</span>
+                <div className="text-sm text-dark/70">{post.society.name}</div>
+              </>
+            )}
+          </div>
+          {timeAgo && <div className="text-xs text-dark/50 mt-1">{timeAgo}</div>}
+
+          {post?.content && (
+            <p className="mt-3 text-sm text-dark whitespace-pre-wrap break-words">
+              {post.content}
+            </p>
+          )}
+
+          <div className="flex items-center gap-4 mt-3">
+            <button
+              onClick={handleLike}
+              disabled={isLiking}
+              className={`flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-sm transition-all ${
+                post.likedByMe
+                  ? "bg-red-50 text-red-600 hover:bg-red-100"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+              } ${isLiking ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <Heart
+                size={16}
+                className={post.likedByMe ? "fill-current" : ""}
+              />
+              <span>{post.likeCount || 0}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Small atoms
 function Input({ label, ...props }) {
   return (
@@ -3789,6 +4012,9 @@ function StudentDashboardApp() {
   const [studentEvents, setStudentEvents] = useState([]);
   const [studentEventsLoading, setStudentEventsLoading] = useState(true);
   const [studentEventsError, setStudentEventsError] = useState(null);
+  const [studentPosts, setStudentPosts] = useState([]);
+  const [studentPostsLoading, setStudentPostsLoading] = useState(true);
+  const [studentPostsError, setStudentPostsError] = useState(null);
   const [recommendationRails, setRecommendationRails] = useState([]);
   const [recommendationsLoading, setRecommendationsLoading] = useState(true);
   const [recommendationsError, setRecommendationsError] = useState(null);
@@ -4022,6 +4248,28 @@ function StudentDashboardApp() {
     }
   }, [baseUser.campus, push, studentSocieties]);
 
+  const loadStudentPosts = useCallback(async () => {
+    setStudentPostsLoading(true);
+    try {
+      const response = await getPostsFeed(1, 50);
+      const posts = Array.isArray(response?.data) ? response.data : [];
+      setStudentPosts(posts);
+      setStudentPostsError(null);
+    } catch (error) {
+      setStudentPosts([]);
+      setStudentPostsError(error);
+      if (error?.status && error.status !== 401) {
+        push({
+          title: "Couldn't load posts",
+          description: error?.message ?? "Please try again shortly.",
+          tone: "error",
+        });
+      }
+    } finally {
+      setStudentPostsLoading(false);
+    }
+  }, [push]);
+
   const dashboardRecommendations = useMemo(() => {
     const picks = [];
     const seen = new Set();
@@ -4057,7 +4305,8 @@ function StudentDashboardApp() {
   useEffect(() => {
     if (studentSocietiesLoading) return;
     loadStudentEvents();
-  }, [loadStudentEvents, studentSocietiesLoading]);
+    loadStudentPosts();
+  }, [loadStudentEvents, loadStudentPosts, studentSocietiesLoading]);
 
   useEffect(() => {
     setDashboardState((prev) => ({ ...prev, events: studentEvents }));
@@ -4119,6 +4368,41 @@ function StudentDashboardApp() {
     }
   }, [push]);
 
+  const handleTogglePostLike = useCallback(async (postId, currentlyLiked) => {
+    const idString = String(postId);
+    let snapshot = null;
+    setStudentPosts((prev) => {
+      snapshot = prev;
+      return prev.map((post) => {
+        if (post.postId !== idString) return post;
+        const nextLiked = !currentlyLiked;
+        const delta = (nextLiked ? 1 : 0) - (currentlyLiked ? 1 : 0);
+        return {
+          ...post,
+          likedByMe: nextLiked,
+          likeCount: Math.max(0, (post.likeCount ?? 0) + delta),
+          optimistic: true,
+        };
+      });
+    });
+
+    try {
+      await togglePostLike(idString, currentlyLiked);
+      setStudentPosts((prev) =>
+        prev.map((post) =>
+          post.postId === idString ? { ...post, optimistic: false } : post
+        )
+      );
+    } catch (error) {
+      if (snapshot) setStudentPosts(snapshot);
+      push({
+        title: "Could not update like",
+        description: error.message,
+        tone: "error",
+      });
+    }
+  }, [push]);
+
   const handleLeaveSociety = useCallback(async (societyId) => {
     const idString = String(societyId);
     let snapshot;
@@ -4153,6 +4437,7 @@ function StudentDashboardApp() {
       setStudentSocieties((prev) => prev.filter((society) => getSocietyId(society) !== idString));
       setMySocietyRefreshKey((key) => key + 1);
       loadStudentEvents();
+      loadStudentPosts();
       return true;
     } catch (error) {
       setDashboardState(snapshot);
@@ -4163,7 +4448,7 @@ function StudentDashboardApp() {
       });
       return false;
     }
-  }, [push, loadStudentEvents]);
+  }, [push, loadStudentEvents, loadStudentPosts]);
 
   const handleJoinSociety = useCallback(async (societyId) => {
     try {
@@ -4236,6 +4521,14 @@ function StudentDashboardApp() {
           error={studentEventsError}
           events={studentEvents}
           onToggleRsvp={handleToggleRsvp}
+        />
+      )}
+      {page === "posts" && (
+        <PostsPage
+          loading={studentPostsLoading}
+          error={studentPostsError}
+          posts={studentPosts}
+          onToggleLike={handleTogglePostLike}
         />
       )}
     </Shell>
