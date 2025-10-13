@@ -514,6 +514,37 @@ function formatDateLabel(value) {
   });
 }
 
+function getEventStartTimeMs(event) {
+  if (!event) return null;
+  if (typeof event.startTimeMs === "number" && Number.isFinite(event.startTimeMs)) {
+    return event.startTimeMs;
+  }
+  const source = event.startsAt ?? event.starts_at ?? null;
+  if (!source) return null;
+  const parsed = Date.parse(source);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isEventUpcoming(event, now = Date.now()) {
+  const start = getEventStartTimeMs(event);
+  if (start == null) return false;
+  return start >= now;
+}
+
+function countUpcomingEvents(events) {
+  if (!Array.isArray(events)) return 0;
+  const now = Date.now();
+  return events.filter((event) => isEventUpcoming(event, now)).length;
+}
+
+function isActiveSocietyMember(entity) {
+  if (!entity) return false;
+  if (typeof entity.isActiveMember === "boolean") return entity.isActiveMember;
+  const status = entity.membershipStatus ?? entity.status ?? null;
+  const normalized = normalizeMembershipStatusValue(status);
+  return normalized === "active";
+}
+
 function isSocietyJoined(entity) {
   if (!entity) return false;
   if (typeof entity.isMember === "boolean") return entity.isMember;
@@ -669,9 +700,14 @@ function DashboardPage({
 }) {
   if (loading) return <DashboardSkeleton />;
 
+  const now = Date.now();
+  const upcomingEvents = Array.isArray(events)
+    ? events.filter((event) => isEventUpcoming(event, now))
+    : [];
+
   const stats = {
     activeSocieties: summary?.activeSocieties ?? summary?.active ?? 0,
-    upcomingEvents: summary?.upcomingEvents ?? events.length ?? 0,
+    upcomingEvents: summary?.upcomingEvents ?? upcomingEvents.length ?? 0,
     newMatches: summary?.newMatches ?? Math.max(0, recommendations.length - 1),
   };
 
@@ -746,13 +782,13 @@ function DashboardPage({
           subtitle="Don’t miss activities from your societies"
         >
           <div className="space-y-3">
-            {!loading && events.length === 0 && (
+            {!loading && upcomingEvents.length === 0 && (
               <div className="rounded-2xl border border-dashed border-mediumpur/40 bg-white p-6 text-center">
                 <p className="text-sm font-medium text-dark">No upcoming events</p>
                 <p className="mt-1 text-sm text-dark/70">Your societies will list events here once they’re announced.</p>
               </div>
             )}
-            {events.map((event) => (
+            {upcomingEvents.map((event) => (
               <div
                 key={event.id}
                 className="flex items-center justify-between gap-3 rounded-2xl p-3"
@@ -1283,7 +1319,7 @@ function ExplorePage({ societies, onJoin, onLeave }) {
         if (!item) return;
         const id = getSocietyId(item);
         if (!id) return;
-        if (item.isMember === true) {
+        if (item.isActiveMember === true) {
           joined.add(id);
           return;
         }
@@ -1345,10 +1381,14 @@ function ExplorePage({ societies, onJoin, onLeave }) {
     const mapStatus = id ? studentMembershipsMap.get(id) ?? null : null;
     const rawStatus = mapStatus ?? item.membershipStatus ?? item.status ?? null;
     const normalizedStatus = normalizeMembershipStatusValue(rawStatus);
-    const isMember =
+    const isActiveMember =
       joinedIds.has(id) ||
-      item.isMember === true ||
+      item.isActiveMember === true ||
       normalizedStatus === "active";
+    const isMember =
+      isActiveMember ||
+      item.isMember === true ||
+      normalizedStatus === "pending";
     const membershipStatus = normalizedStatus ?? (typeof rawStatus === "string" ? rawStatus.trim() : null);
 
     let displayTags = Array.isArray(item.tags)
@@ -1387,6 +1427,7 @@ function ExplorePage({ societies, onJoin, onLeave }) {
       interestTags,
       tags: item.tags ?? [],
       displayTags,
+      isActiveMember,
       isMember,
       membershipStatus,
       membershipStatusLabel: formatMembershipStatusLabel(membershipStatus ?? rawStatus ?? null),
@@ -1419,10 +1460,16 @@ function ExplorePage({ societies, onJoin, onLeave }) {
           const rawStatus = mapStatus ?? item.membershipStatus ?? item.status ?? null;
           const normalizedStatus = normalizeMembershipStatusValue(rawStatus);
           const membershipStatus = normalizedStatus ?? (typeof rawStatus === "string" ? rawStatus.trim() : null);
-          const joined = id ? joinedIds.has(id) || normalizedStatus === "active" || item.isMember === true : false;
+          const joined = id
+            ? joinedIds.has(id) ||
+              normalizedStatus === "active" ||
+              item.isActiveMember === true ||
+              item.isMember === true
+            : false;
           return {
             ...item,
             id,
+            isActiveMember: joined && (normalizedStatus === "active" || item.isActiveMember === true),
             isMember: joined,
             membershipStatus,
             membershipStatusLabel: formatMembershipStatusLabel(membershipStatus ?? rawStatus ?? null),
@@ -1447,6 +1494,7 @@ function ExplorePage({ societies, onJoin, onLeave }) {
         const membershipStatus = normalizedStatus ?? (typeof rawStatus === "string" ? rawStatus.trim() : null);
         const isMember =
           normalizedStatus === "active" ||
+          item.isActiveMember === true ||
           item.isMember === true ||
           joinedIds.has(item.id);
         map.set(item.id, {
@@ -2213,6 +2261,10 @@ function mapEventFromApi(item) {
   const endsAt = item.endsAt ?? item.ends_at ?? null;
   const startDate = startsAt ? new Date(startsAt) : null;
   const endDate = endsAt ? new Date(endsAt) : null;
+  const startTimeMs =
+    startDate && !Number.isNaN(startDate.getTime()) ? startDate.getTime() : null;
+  const endTimeMs =
+    endDate && !Number.isNaN(endDate.getTime()) ? endDate.getTime() : null;
   const dateLabel = formatDateLabel(startsAt) ?? "Date to be announced";
   const timeLabel = startDate && !Number.isNaN(startDate.getTime())
     ? startDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
@@ -2232,6 +2284,8 @@ function mapEventFromApi(item) {
     location: item.location ?? null,
     startsAt,
     endsAt,
+    startTimeMs,
+    endTimeMs,
     date: dateLabel,
     time: timeLabel,
     capacity: item.capacity ?? null,
@@ -3489,9 +3543,10 @@ function EventsPage({ loading, events = [], error, onToggleRsvp }) {
     const lowered = query.trim().toLowerCase();
     const now = Date.now();
     return events.filter((event) => {
-      const startTime = event?.startsAt ? new Date(event.startsAt).getTime() : null;
-      const isUpcoming = startTime == null || startTime >= now;
-      const isPast = startTime != null && startTime < now;
+      const startTime = getEventStartTimeMs(event);
+      const hasStartTime = typeof startTime === "number";
+      const isUpcoming = hasStartTime ? startTime >= now : false;
+      const isPast = hasStartTime ? startTime < now : false;
 
       const matchesTime =
         timeFilter === "all"
@@ -3499,6 +3554,7 @@ function EventsPage({ loading, events = [], error, onToggleRsvp }) {
           : timeFilter === "upcoming"
             ? isUpcoming
             : isPast;
+      if (!hasStartTime && timeFilter !== "all") return false;
 
       const matchesSociety =
         selectedSociety === "all"
@@ -4128,6 +4184,7 @@ function StudentDashboardApp() {
             const rawStatus = entry?.status ?? null;
             const normalizedStatus = normalizeMembershipStatusValue(rawStatus);
             const membershipStatus = normalizedStatus ?? (typeof rawStatus === "string" ? rawStatus.trim() : null);
+            const isActiveMember = normalizedStatus === "active";
             return {
               id,
               name:
@@ -4141,9 +4198,10 @@ function StudentDashboardApp() {
               description: society.description ?? null,
               membershipStatus,
               membershipStatusLabel: formatMembershipStatusLabel(membershipStatus ?? rawStatus ?? null),
+              isActiveMember,
               isMember: normalizedStatus
                 ? normalizedStatus !== "left" && normalizedStatus !== "inactive"
-                : true,
+                : false,
               tags: Array.isArray(entry?.tags) ? entry.tags : [],
               interestTags: Array.isArray(entry?.interestTags) ? entry.interestTags : [],
               joinDate: entry?.joinDate ?? null,
@@ -4181,6 +4239,7 @@ function StudentDashboardApp() {
       ? Array.from(
           new Set(
             studentSocieties
+              .filter((society) => isActiveSocietyMember(society))
               .map((society) => {
                 const id = getSocietyId(society);
                 return id && /^\d+$/.test(id) ? id : null;
@@ -4189,6 +4248,13 @@ function StudentDashboardApp() {
           )
         )
       : [];
+
+    if (joinedIds.length === 0) {
+      setStudentEvents([]);
+      setStudentEventsError(null);
+      setStudentEventsLoading(false);
+      return;
+    }
 
     try {
       const results = [];
@@ -4215,9 +4281,11 @@ function StudentDashboardApp() {
           results.map((event) => [event.id ?? `${event.title}-${event.startsAt}`, event])
         ).values()
       ).sort((a, b) => {
-        const aTime = a?.startsAt ? new Date(a.startsAt).getTime() : Number.POSITIVE_INFINITY;
-        const bTime = b?.startsAt ? new Date(b.startsAt).getTime() : Number.POSITIVE_INFINITY;
-        return aTime - bTime;
+        const aTime = getEventStartTimeMs(a);
+        const bTime = getEventStartTimeMs(b);
+        const safeA = typeof aTime === "number" ? aTime : Number.POSITIVE_INFINITY;
+        const safeB = typeof bTime === "number" ? bTime : Number.POSITIVE_INFINITY;
+        return safeA - safeB;
       });
 
       setStudentEvents(deduped);
@@ -4475,6 +4543,16 @@ function StudentDashboardApp() {
   const dashboardLoading =
     loading || studentEventsLoading || studentSocietiesLoading || (recommendationsLoading && dashboardRecommendations.length === 0);
 
+  const activeSocietiesCount = useMemo(
+    () => (Array.isArray(studentSocieties) ? studentSocieties.filter((society) => isActiveSocietyMember(society)).length : 0),
+    [studentSocieties]
+  );
+
+  const upcomingEventsCount = useMemo(
+    () => countUpcomingEvents(studentEvents),
+    [studentEvents]
+  );
+
   return (
     <Shell
       page={page}
@@ -4486,8 +4564,8 @@ function StudentDashboardApp() {
         <DashboardPage
           loading={dashboardLoading}
           summary={{
-            activeSocieties: studentSocieties.length,
-            upcomingEvents: studentEvents.length,
+            activeSocieties: activeSocietiesCount,
+            upcomingEvents: upcomingEventsCount,
             newMatches: dashboardRecommendations.length,
           }}
           recommendations={dashboardRecommendations}

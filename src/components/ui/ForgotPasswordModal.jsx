@@ -1,16 +1,19 @@
 import { Dialog } from "@headlessui/react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { requestPasswordReset } from "@/services/AuthAPIs.jsx";
 import logo from "@/assets/logo.png";
 
 export default function ForgotPasswordModal({ open, onClose }) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const resetForm = () => {
     setEmail("");
     setError("");
     setSuccess("");
+    setSubmitting(false);
   };
 
   useEffect(() => {
@@ -22,7 +25,7 @@ export default function ForgotPasswordModal({ open, onClose }) {
     onClose?.();
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!email) {
@@ -30,9 +33,19 @@ export default function ForgotPasswordModal({ open, onClose }) {
       return;
     }
 
-    // TODO: Replace with actual API call to send reset link
-    setSuccess(`A password reset link has been sent to ${email}.`);
-    setError("");
+    try {
+      setSubmitting(true);
+      setError("");
+      const identifier = email.trim();
+      await requestPasswordReset(identifier);
+      setSuccess(`If an account exists for ${identifier}, we'll send reset instructions shortly.`);
+    } catch (err) {
+      const message = err?.message ?? "We couldn't send the reset email right now. Please try again.";
+      setError(message);
+      setSuccess("");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -104,9 +117,12 @@ export default function ForgotPasswordModal({ open, onClose }) {
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-gradient-to-r from-mediumpur to-softlav py-2 text-white font-semibold shadow hover:opacity-90 transition"
+              disabled={submitting}
+              className={`w-full rounded-lg bg-gradient-to-r from-mediumpur to-softlav py-2 text-white font-semibold shadow transition ${
+                submitting ? "cursor-wait opacity-70" : "hover:opacity-90"
+              }`}
             >
-              Send Reset Link
+              {submitting ? "Sending..." : "Send Reset Link"}
             </button>
           </form>
         </Dialog.Panel>
