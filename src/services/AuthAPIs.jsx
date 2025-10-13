@@ -58,6 +58,35 @@ export async function login({ universityNumber, universityNumberOrEmail, email, 
   }
 }
 
+export async function requestPasswordReset(identifier) {
+  const trimmed = typeof identifier === "string" ? identifier.trim() : "";
+  if (!trimmed) {
+    throw { message: "Email or university number is required" };
+  }
+
+  try {
+    const res = await API.post("/forgot-password", { identifier: trimmed });
+    return res.data;
+  } catch (err) {
+    throw formatAxiosError(err);
+  }
+}
+
+export async function resetPassword({ userId, token, newPassword }) {
+  const payload = {
+    userId,
+    token,
+    newPassword,
+  };
+
+  try {
+    const res = await API.post("/reset-password", payload);
+    return res.data;
+  } catch (err) {
+    throw formatAxiosError(err);
+  }
+}
+
 export function logout() {
   localStorage.removeItem('token');
   setAuthHeader(null);
@@ -90,4 +119,6 @@ export default {
   logout,
   getCurrentUser,
   setAuthHeader,
+  requestPasswordReset,
+  resetPassword,
 };
