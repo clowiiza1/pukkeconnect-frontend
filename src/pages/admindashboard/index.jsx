@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +17,7 @@ import {
   Plus,
   Home,
   LogOut,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SocietiesManager from "./SocietiesManager.jsx";
@@ -32,6 +33,8 @@ import { api, asApiError } from "@/services/apis.jsx";
 import { approveSociety, rejectSociety } from "@/services/admin.js";
 import { useAuth } from "@/context/AuthContext";
 import brandIcon from "@/assets/icon1.png";
+import { presignUpload, uploadFileToPresignedUrl, primeDownloadCache, invalidateDownloadUrl } from "@/services/uploads.jsx";
+import { useMediaPreviews } from "@/hooks/useMediaPreviews.js";
 
 // Brand palette
 const colors = {
@@ -41,12 +44,15 @@ const colors = {
   plum: "#6a509b",
 };
 
+const FALLBACK_IMAGE_URL = "https://pukkeconnect.s3.eu-central-1.amazonaws.com/imageplaceholder.jpg";
+
 const campusOptions = ["Mafikeng", "Potchefstroom", "Vanderbijlpark"];
 
 // Shell layout reused from student dashboard but adapted for admin
 function Shell({ page, setPage, children }) {
   const [open, setOpen] = useState(true);
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const nav = [
     { key: "dashboard", label: "Overview", icon: <LayoutDashboard size={18} /> },
     { key: "announcements", label: "Announcements", icon: <Bell size={18} /> },
@@ -105,7 +111,7 @@ function Shell({ page, setPage, children }) {
             <button
               onClick={() => {
                 logout();
-                window.location.href = '/';
+                navigate("/", { replace: true });
               }}
               className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-opacity-80"
               style={{ background: colors.plum, color: 'white' }}
@@ -525,11 +531,21 @@ function SocietiesPage() {
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
+  const [createPendingLogoFile, setCreatePendingLogoFile] = useState(null);
+  const [createPendingLogoPreview, setCreatePendingLogoPreview] = useState(null);
+  const [createLogoUploading, setCreateLogoUploading] = useState(false);
+  const [createLogoError, setCreateLogoError] = useState(null);
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
   useEffect(() => {
     if (showCreateModal) {
+      if (createPendingLogoPreview) {
+        URL.revokeObjectURL(createPendingLogoPreview);
+      }
+      setCreatePendingLogoFile(null);
+      setCreatePendingLogoPreview(null);
+      setCreateLogoError(null);
       loadUsers();
     }
   }, [showCreateModal]);
@@ -544,6 +560,41 @@ function SocietiesPage() {
     } finally {
       setLoadingUsers(false);
     }
+  };
+
+  const handleCreateLogoUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setCreateLogoError("Please upload a valid image file (PNG, JPG, JPEG)");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setCreateLogoError("Image must be less than 2MB");
+      return;
+    }
+
+    if (createPendingLogoPreview) {
+      URL.revokeObjectURL(createPendingLogoPreview);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setCreatePendingLogoFile(file);
+    setCreatePendingLogoPreview(previewUrl);
+    setCreateLogoError(null);
+  };
+
+  const removeCreateLogo = () => {
+    if (createPendingLogoPreview) {
+      URL.revokeObjectURL(createPendingLogoPreview);
+    }
+    setCreatePendingLogoFile(null);
+    setCreatePendingLogoPreview(null);
+    setCreateLogoError(null);
   };
 
   const handleCreate = async () => {
@@ -567,8 +618,32 @@ function SocietiesPage() {
         });
       }
 
+      if (createPendingLogoFile) {
+        try {
+          setCreateLogoUploading(true);
+          const presign = await presignUpload({
+            scope: "society",
+            folder: `logos/${societyId}`,
+            fileName: createPendingLogoFile.name,
+            contentType: createPendingLogoFile.type,
+            size: createPendingLogoFile.size,
+          });
+
+          await uploadFileToPresignedUrl(presign.uploadUrl, createPendingLogoFile);
+          await api.put(`/societies/${societyId}`, {
+            logo: { key: presign.key },
+          });
+        } catch (err) {
+          console.error("Failed to upload logo", err);
+          setCreateError(asApiError(err)?.message || "Society created, but failed to upload logo. You can edit the society to add it later.");
+        } finally {
+          setCreateLogoUploading(false);
+        }
+      }
+
       // Reset form and close modal
       setCreateForm({ name: "", description: "", category: "", campus: "", adminUserId: "" });
+      removeCreateLogo();
       setShowCreateModal(false);
       // Note: You might want to trigger a refresh of the societies list here
     } catch (err) {
@@ -639,6 +714,60 @@ function SocietiesPage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">Society Logo</label>
+                  <div className="flex items-start gap-3">
+                    <div className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-white">
+                      {createLogoUploading ? (
+                        <Loader2 size={18} className="animate-spin text-gray-400" />
+                      ) : (
+                        <img
+                          src={createPendingLogoPreview ?? FALLBACK_IMAGE_URL}
+                          alt="Society logo preview"
+                          className="w-full h-full object-contain"
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <label
+                          className={`inline-flex items-center px-3 py-2 rounded-lg text-white text-sm cursor-pointer transition ${createLogoUploading ? "opacity-70 cursor-not-allowed" : "hover:opacity-90"}`}
+                          style={{ background: colors.plum }}
+                      >
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleCreateLogoUpload}
+                            disabled={createLogoUploading || creating}
+                          />
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                          Choose Logo
+                        </label>
+                        {createPendingLogoFile && (
+                          <button
+                            type="button"
+                            onClick={removeCreateLogo}
+                            disabled={createLogoUploading || creating}
+                            className="inline-flex items-center px-3 py-2 rounded-lg text-sm bg-red-50 text-red-600 hover:bg-red-100 transition"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">Optional. Recommended: square image, 300x300px, PNG or JPG, max 2MB.</p>
+                      {createLogoError && (
+                        <p className="text-xs text-red-500">{createLogoError}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-sm font-semibold mb-1 text-gray-700">Category *</label>
                   <input
                     type="text"
@@ -706,6 +835,7 @@ function SocietiesPage() {
                       setShowCreateModal(false);
                       setCreateForm({ name: "", description: "", category: "", campus: "", adminUserId: "" });
                       setCreateError(null);
+                      removeCreateLogo();
                     }}
                     disabled={creating}
                     className="flex-1 rounded-xl px-4 py-2 text-sm font-semibold transition"
