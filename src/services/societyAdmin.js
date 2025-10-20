@@ -332,8 +332,12 @@ export async function getPostDetails(postId) {
 export async function createPost(societyId, postData) {
   try {
     const payload = {
-      content: postData.content
+      content: postData.content,
     };
+
+    if (Array.isArray(postData.media)) {
+      payload.media = postData.media;
+    }
 
     const response = await api.post(`/societies/${societyId}/posts`, payload);
     return response.data;
@@ -352,8 +356,12 @@ export async function createPost(societyId, postData) {
 export async function updatePost(postId, postData) {
   try {
     const payload = {
-      content: postData.content
+      content: postData.content,
     };
+
+    if (Array.isArray(postData.media)) {
+      payload.media = postData.media;
+    }
 
     const response = await api.put(`/posts/${postId}`, payload);
     return response.data;

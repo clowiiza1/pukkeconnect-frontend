@@ -43,6 +43,7 @@ import { listInterests, getStudentInterests, setStudentInterests } from "@/servi
 import { fetchMatchmakerQuiz, submitMatchmakerQuizAnswers } from "@/services/quizzes";
 import { listNotifications, markNotificationSeen } from "@/services/notifications";
 import { getPostsFeed, togglePostLike } from "@/services/posts";
+import { MediaPreviewGrid } from "@/components/ui/MediaPreviewGrid.jsx";
 import brandIcon from "@/assets/icon1.png";
 
 // Brand palette
@@ -3973,6 +3974,10 @@ function PostCard({ post, onToggleLike }) {
             </p>
           )}
 
+          {Array.isArray(post.media) && post.media.length > 0 && (
+            <MediaPreviewGrid media={post.media} />
+          )}
+
           <div className="flex items-center gap-4 mt-3">
             <button
               onClick={handleLike}
@@ -4072,6 +4077,11 @@ function StudentDashboardApp() {
   const [studentPosts, setStudentPosts] = useState([]);
   const [studentPostsLoading, setStudentPostsLoading] = useState(true);
   const [studentPostsError, setStudentPostsError] = useState(null);
+
+  const normalizePost = (post) => ({
+    ...post,
+    media: Array.isArray(post.media) ? post.media : [],
+  });
   const [recommendationRails, setRecommendationRails] = useState([]);
   const [recommendationsLoading, setRecommendationsLoading] = useState(true);
   const [recommendationsError, setRecommendationsError] = useState(null);
@@ -4322,7 +4332,7 @@ function StudentDashboardApp() {
     try {
       const response = await getPostsFeed(1, 50);
       const posts = Array.isArray(response?.data) ? response.data : [];
-      setStudentPosts(posts);
+      setStudentPosts(posts.map(normalizePost));
       setStudentPostsError(null);
     } catch (error) {
       setStudentPosts([]);

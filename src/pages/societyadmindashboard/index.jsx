@@ -3,6 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api, asApiError } from "@/services/apis.jsx";
+import {
+  presignUpload,
+  uploadFileToPresignedUrl,
+  primeDownloadCache,
+  invalidateDownloadUrl,
+} from "@/services/uploads.jsx";
+import { useMediaPreviews } from "@/hooks/useMediaPreviews.js";
 //=====MOCK IMAGES FOR MEMBERS ======//
 import photo1 from "@/assets/photo1.jpg";
 import photo2 from "@/assets/photo2.jpg";
@@ -28,6 +35,7 @@ import {
   getMySociety,
   sendNotification
 } from "@/services/societyAdmin";
+import { MediaPreviewGrid } from "@/components/ui/MediaPreviewGrid.jsx";
 import { getCurrentUser, updateCurrentUser } from "@/services/profile.jsx";
 import {
   LayoutDashboard,
@@ -59,6 +67,7 @@ import {
   Building2,
   Home,
   LogOut,
+  Loader2,
 } from "lucide-react";
 
 
@@ -2521,6 +2530,19 @@ function PostsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [societyId, setSocietyId] = useState(null);
   const [deleteConfirmPost, setDeleteConfirmPost] = useState(null);
+  const [mediaAttachments, setMediaAttachments] = useState([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+
+  const attachmentPreviews = useMediaPreviews(mediaAttachments);
+
+  const MAX_POST_MEDIA = 10;
+  const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+  const normalizePost = (post) => ({
+    ...post,
+    media: Array.isArray(post.media) ? post.media : [],
+  });
 
   // Load society ID and posts from API
   useEffect(() => {
@@ -2535,7 +2557,7 @@ function PostsPage() {
         // Load posts for this society
         const response = await getSocietyPosts(society.societyId);
         const postsData = Array.isArray(response) ? response : (response?.data || []);
-        setPosts(postsData);
+        setPosts(postsData.map(normalizePost));
       } catch (err) {
         console.error("Error loading data:", err);
       } finally {
@@ -2565,6 +2587,18 @@ function PostsPage() {
       return;
     }
 
+    if (uploadingMedia) {
+      alert("Please wait for image uploads to finish before saving.");
+      return;
+    }
+
+    const mediaPayload = mediaAttachments.map((item, index) => ({
+      key: item.key,
+      contentType: item.contentType,
+      size: item.size,
+      position: index,
+    }));
+
     setIsSubmitting(true);
 
     try {
@@ -2572,17 +2606,27 @@ function PostsPage() {
 
       if (selectedPost) {
         // Update existing post
-        savedPost = await updatePost(selectedPost.postId, { content: postContent });
-        setPosts(posts.map(p => p.postId === savedPost.postId ? savedPost : p));
+        savedPost = await updatePost(selectedPost.postId, {
+          content: postContent,
+          media: mediaPayload,
+        });
+        const normalized = normalizePost(savedPost);
+        setPosts((prev) => prev.map((p) => (p.postId === normalized.postId ? normalized : p)));
       } else {
         // Create new post
-        savedPost = await createPost(societyId, { content: postContent });
-        setPosts([savedPost, ...posts]);
+        savedPost = await createPost(societyId, {
+          content: postContent,
+          media: mediaPayload,
+        });
+        const normalized = normalizePost(savedPost);
+        setPosts((prev) => [normalized, ...prev]);
       }
 
       // Reset form
       setPostContent('');
       setSelectedPost(null);
+      setMediaAttachments([]);
+      setUploadError(null);
       setViewMode('list');
     } catch (error) {
       console.error("Error saving post:", error);
@@ -2594,8 +2638,18 @@ function PostsPage() {
 
   // Edit post
   const handleEditPost = (post) => {
-    setSelectedPost(post);
-    setPostContent(post.content);
+    const normalized = normalizePost(post);
+    setSelectedPost(normalized);
+    setPostContent(normalized.content ?? '');
+    setMediaAttachments(
+      normalized.media.map((item, index) => ({
+        key: item.key,
+        contentType: item.contentType,
+        size: item.size,
+        position: item.position ?? index,
+      }))
+    );
+    setUploadError(null);
     setViewMode('create');
   };
 
@@ -2603,7 +2657,7 @@ function PostsPage() {
   const handleDeletePost = async (postId) => {
     try {
       await deletePost(postId);
-      setPosts(posts.filter(p => p.postId !== postId));
+      setPosts((prev) => prev.filter(p => p.postId !== postId));
       setDeleteConfirmPost(null);
     } catch (error) {
       console.error("Error deleting post:", error);
@@ -2611,10 +2665,92 @@ function PostsPage() {
     }
   };
 
+  const handleMediaSelect = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+
+    if (!files.length) return;
+
+    const remainingSlots = MAX_POST_MEDIA - mediaAttachments.length;
+    if (remainingSlots <= 0) {
+      setUploadError(`You can attach up to ${MAX_POST_MEDIA} images per post.`);
+      return;
+    }
+
+    const filesToUpload = files.slice(0, remainingSlots);
+    if (filesToUpload.length < files.length) {
+      setUploadError(`Only the first ${remainingSlots} file(s) were added (maximum ${MAX_POST_MEDIA}).`);
+    } else {
+      setUploadError(null);
+    }
+
+    setUploadingMedia(true);
+
+    try {
+      const newAttachments = [];
+
+      for (const file of filesToUpload) {
+        if (!file.type || !file.type.startsWith('image/')) {
+          setUploadError('Only image files are supported.');
+          continue;
+        }
+
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+          setUploadError('Images must be 10MB or smaller.');
+          continue;
+        }
+
+        try {
+          const presign = await presignUpload({
+            scope: 'post',
+            fileName: file.name,
+            contentType: file.type,
+            size: file.size,
+          });
+
+          await uploadFileToPresignedUrl(presign.uploadUrl, file);
+          primeDownloadCache(presign.key, presign.downloadUrl, presign.downloadExpiresIn);
+
+          newAttachments.push({
+            key: presign.key,
+            contentType: file.type,
+            size: file.size,
+          });
+        } catch (error) {
+          console.error('Failed to upload media file', error);
+          setUploadError('Failed to upload one or more files. Please try again.');
+        }
+      }
+
+      if (newAttachments.length) {
+        setMediaAttachments((prev) => {
+          const combined = [...prev, ...newAttachments];
+          return combined.slice(0, MAX_POST_MEDIA).map((item, index) => ({
+            ...item,
+            position: index,
+          }));
+        });
+      }
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  const handleRemoveAttachment = (key) => {
+    invalidateDownloadUrl(key);
+    setMediaAttachments((prev) =>
+      prev
+        .filter((item) => item.key !== key)
+        .map((item, index) => ({ ...item, position: index }))
+    );
+  };
+
   // Cancel editing
   const handleCancel = () => {
     setPostContent('');
     setSelectedPost(null);
+    setMediaAttachments([]);
+    setUploadError(null);
     setViewMode('list');
   };
 
@@ -2649,6 +2785,76 @@ function PostsPage() {
               {postContent.length}/4000 characters
             </div>
           </label>
+
+          <div>
+            <div className="flex items-center justify-between text-sm font-medium mb-2">
+              <span>Photos</span>
+              <span className="text-xs font-normal text-gray-500">
+                {mediaAttachments.length}/{MAX_POST_MEDIA} selected
+              </span>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="inline-flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg cursor-pointer text-sm hover:bg-gray-50 transition-colors w-fit">
+                <ImagePlus size={16} />
+                <span>Add images</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleMediaSelect}
+                  disabled={uploadingMedia}
+                />
+              </label>
+              <p className="text-xs text-gray-500">
+                Attach up to {MAX_POST_MEDIA} images (10MB max each).
+              </p>
+              {uploadError && (
+                <div className="text-xs text-red-500">{uploadError}</div>
+              )}
+              {uploadingMedia && (
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <Loader2 size={14} className="animate-spin" />
+                  Uploading images…
+                </div>
+              )}
+            </div>
+
+            {mediaAttachments.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {attachmentPreviews.map((preview) => (
+                  <div
+                    key={preview.key}
+                    className="relative group overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
+                  >
+                    {preview.loading ? (
+                      <div className="flex h-28 items-center justify-center text-xs text-gray-500">
+                        <Loader2 size={16} className="animate-spin" />
+                      </div>
+                    ) : preview.error || !preview.url ? (
+                      <div className="flex h-28 items-center justify-center text-xs text-red-500">
+                        Failed to load
+                      </div>
+                    ) : (
+                      <img
+                        src={preview.url}
+                        alt="Post attachment"
+                        className="h-28 w-full object-cover"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(preview.key)}
+                      className="absolute top-2 right-2 rounded-full bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      title="Remove image"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="flex gap-3">
             <button
@@ -2691,7 +2897,13 @@ function PostsPage() {
 
         {/* Create Button */}
         <button
-          onClick={() => setViewMode('create')}
+          onClick={() => {
+            setViewMode('create');
+            setSelectedPost(null);
+            setPostContent('');
+            setMediaAttachments([]);
+            setUploadError(null);
+          }}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors"
           style={{ backgroundColor: colors.plum }}
         >
@@ -2712,7 +2924,13 @@ function PostsPage() {
           <h3 className="font-semibold text-gray-900 mb-2">No posts yet</h3>
           <p className="text-sm text-gray-600 mb-4">Create your first post to engage with your members</p>
           <button
-            onClick={() => setViewMode('create')}
+            onClick={() => {
+              setViewMode('create');
+              setSelectedPost(null);
+              setPostContent('');
+              setMediaAttachments([]);
+              setUploadError(null);
+            }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium"
             style={{ backgroundColor: colors.plum }}
           >
@@ -2768,6 +2986,10 @@ function PostsPage() {
               <div className="text-gray-700 whitespace-pre-wrap mb-3">
                 {post.content}
               </div>
+
+              {Array.isArray(post.media) && post.media.length > 0 && (
+                <MediaPreviewGrid media={post.media} />
+              )}
 
               {/* Post Stats */}
               <div className="flex items-center gap-4 pt-3 border-t border-gray-100">
