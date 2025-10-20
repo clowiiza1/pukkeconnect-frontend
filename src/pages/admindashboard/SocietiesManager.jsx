@@ -2,9 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { Edit3, Filter, Loader2, Search, Trash2, X } from "lucide-react";
 import { fetchAdminSocieties, updateAdminSociety, deleteAdminSociety, assignSocietyAdmin, fetchAdminUsers } from "@/services/admin.js";
+import { presignUpload, uploadFileToPresignedUrl, primeDownloadCache, invalidateDownloadUrl } from "@/services/uploads.jsx";
+import { useMediaPreviews } from "@/hooks/useMediaPreviews.js";
 
 const numberFormatter = new Intl.NumberFormat("en-ZA");
 const pageSize = 20;
+const FALLBACK_IMAGE_URL = "https://pukkeconnect.s3.eu-central-1.amazonaws.com/imageplaceholder.jpg";
 
 function formatDate(value) {
   if (!value) return "N/A";
@@ -119,7 +122,30 @@ export default function SocietiesManager({ campusOptions = [] }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [societyAdmins, setSocietyAdmins] = useState([]);
   const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [editLogoKey, setEditLogoKey] = useState(null);
+  const [editLogoInitialKey, setEditLogoInitialKey] = useState(null);
+  const [editPendingLogoFile, setEditPendingLogoFile] = useState(null);
+  const [editPendingLogoPreview, setEditPendingLogoPreview] = useState(null);
+  const [editLogoRemoved, setEditLogoRemoved] = useState(false);
+  const [editLogoUploading, setEditLogoUploading] = useState(false);
+  const [editLogoError, setEditLogoError] = useState(null);
   const timeoutRef = useRef(null);
+
+  const editLogoPreviewItems = useMediaPreviews(editLogoKey ? [{ key: editLogoKey }] : []);
+  const editLogoRemoteUrl = editLogoPreviewItems[0]?.url ?? "";
+  const editLogoPreviewLoading = editLogoPreviewItems[0]?.loading ?? false;
+  const editLogoPreviewFailed = editLogoPreviewItems[0]?.error ?? false;
+  const editLogoPreview = editLogoRemoved
+    ? null
+    : editPendingLogoPreview || (editLogoPreviewFailed ? null : editLogoRemoteUrl);
+
+  useEffect(() => {
+    return () => {
+      if (editPendingLogoPreview) {
+        URL.revokeObjectURL(editPendingLogoPreview);
+      }
+    };
+  }, [editPendingLogoPreview]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -198,6 +224,16 @@ export default function SocietiesManager({ campusOptions = [] }) {
     };
     setEditForm(initialForm);
     setOriginalEditForm(initialForm);
+    const logoKey = record?.logo?.key ?? record?.logoKey ?? null;
+    setEditLogoKey(logoKey);
+    setEditLogoInitialKey(logoKey);
+    setEditLogoError(null);
+    if (editPendingLogoPreview) {
+      URL.revokeObjectURL(editPendingLogoPreview);
+    }
+    setEditPendingLogoFile(null);
+    setEditPendingLogoPreview(null);
+    setEditLogoRemoved(false);
 
     // Load all users (students and society_admins) for the dropdown
     setLoadingAdmins(true);
@@ -217,22 +253,78 @@ export default function SocietiesManager({ campusOptions = [] }) {
     }
   };
 
+  const handleEditLogoUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !editing) return;
+
+    if (!file.type.startsWith("image/")) {
+      setEditLogoError("Please upload a valid image file (PNG, JPG, JPEG)");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setEditLogoError("Image must be less than 2MB");
+      return;
+    }
+
+    if (editPendingLogoPreview) {
+      URL.revokeObjectURL(editPendingLogoPreview);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setEditPendingLogoFile(file);
+    setEditPendingLogoPreview(previewUrl);
+    setEditLogoRemoved(false);
+    setEditLogoError(null);
+  };
+
+  const removeEditLogo = () => {
+    if (editPendingLogoPreview) {
+      URL.revokeObjectURL(editPendingLogoPreview);
+    }
+    setEditPendingLogoFile(null);
+    setEditPendingLogoPreview(null);
+    setEditLogoRemoved(true);
+    setEditLogoError(null);
+  };
+
   const closeEdit = () => {
     if (saving) return;
     setEditing(null);
     setEditForm({ name: "", category: "", campus: "", description: "", adminUserId: "" });
     setOriginalEditForm({ name: "", category: "", campus: "", description: "", adminUserId: "" });
     setSocietyAdmins([]);
+    if (editPendingLogoPreview) {
+      URL.revokeObjectURL(editPendingLogoPreview);
+    }
+    if (editLogoKey && editLogoKey !== editLogoInitialKey) {
+      invalidateDownloadUrl(editLogoKey);
+    }
+    setEditLogoKey(null);
+    setEditLogoInitialKey(null);
+    setEditPendingLogoFile(null);
+    setEditPendingLogoPreview(null);
+    setEditLogoRemoved(false);
+    setEditLogoUploading(false);
+    setEditLogoError(null);
   };
 
   const hasFormChanges = () => {
-    return (
+    const baseChanged =
       editForm.name.trim() !== originalEditForm.name.trim() ||
       editForm.category.trim() !== originalEditForm.category.trim() ||
       editForm.campus !== originalEditForm.campus ||
       editForm.description.trim() !== originalEditForm.description.trim() ||
-      editForm.adminUserId !== originalEditForm.adminUserId
-    );
+      editForm.adminUserId !== originalEditForm.adminUserId;
+
+    const logoChanged =
+      Boolean(editPendingLogoFile) ||
+      (editLogoRemoved && editLogoInitialKey !== null) ||
+      (!editLogoRemoved && !editPendingLogoFile && editLogoKey !== editLogoInitialKey);
+
+    return baseChanged || logoChanged;
   };
 
   const handleEditSubmit = async (event) => {
@@ -241,12 +333,46 @@ export default function SocietiesManager({ campusOptions = [] }) {
     setSaving(true);
     try {
       // Update society details
-      await updateAdminSociety(editing.societyId, {
+      const payload = {
         name: editForm.name.trim(),
         category: editForm.category.trim() || null,
         campus: editForm.campus || null,
         description: editForm.description.trim() || null,
-      });
+      };
+
+      let nextLogoKey = editLogoInitialKey;
+      let uploadedLogo = null;
+
+      if (editPendingLogoFile) {
+        try {
+          setEditLogoUploading(true);
+          const presign = await presignUpload({
+            scope: "society",
+            folder: `logos/${editing.societyId}`,
+            fileName: editPendingLogoFile.name,
+            contentType: editPendingLogoFile.type,
+            size: editPendingLogoFile.size,
+          });
+
+          await uploadFileToPresignedUrl(presign.uploadUrl, editPendingLogoFile);
+          uploadedLogo = presign;
+          nextLogoKey = presign.key;
+        } catch (err) {
+          console.error("Failed to upload logo", err);
+          setEditLogoError("Failed to upload logo. Please try again.");
+          throw err;
+        } finally {
+          setEditLogoUploading(false);
+        }
+      } else if (editLogoRemoved && editLogoInitialKey) {
+        nextLogoKey = null;
+      }
+
+      if (editPendingLogoFile || (editLogoRemoved && editLogoInitialKey)) {
+        payload.logo = nextLogoKey ? { key: nextLogoKey } : null;
+      }
+
+      await updateAdminSociety(editing.societyId, payload);
 
       // Assign admin if changed
       const originalAdminId = editing.adminId || "";
@@ -258,6 +384,24 @@ export default function SocietiesManager({ campusOptions = [] }) {
       } else {
         showBanner("success", "Society updated successfully");
       }
+
+      if (editLogoInitialKey && editLogoInitialKey !== nextLogoKey) {
+        invalidateDownloadUrl(editLogoInitialKey);
+      }
+      if (uploadedLogo) {
+        primeDownloadCache(uploadedLogo.key, uploadedLogo.downloadUrl, uploadedLogo.downloadExpiresIn);
+      }
+
+      if (editPendingLogoPreview) {
+        URL.revokeObjectURL(editPendingLogoPreview);
+      }
+
+      setEditLogoInitialKey(nextLogoKey);
+      setEditLogoKey(nextLogoKey);
+      setEditPendingLogoFile(null);
+      setEditPendingLogoPreview(null);
+      setEditLogoRemoved(false);
+      setEditLogoError(null);
 
       setReloadKey((value) => value + 1);
       closeEdit();
@@ -414,7 +558,15 @@ export default function SocietiesManager({ campusOptions = [] }) {
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{record.name}</div>
                       <div className="text-xs text-gray-500">
-                        Managed by {record.createdBy?.firstName || "Unknown"} {record.createdBy?.lastName || ""}
+                        {record.createdBy?.firstName && record.createdBy?.lastName ? (
+                          <>Managed by {record.createdBy.firstName} {record.createdBy.lastName}</>
+                        ) : record.createdBy?.firstName ? (
+                          <>Managed by {record.createdBy.firstName}</>
+                        ) : record.createdBy?.lastName ? (
+                          <>Managed by {record.createdBy.lastName}</>
+                        ) : (
+                          <span className="italic text-gray-400">No society admin assigned</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{record.category || "N/A"}</td>
@@ -557,6 +709,57 @@ export default function SocietiesManager({ campusOptions = [] }) {
             ) : (
               <p className="text-xs text-gray-500">Select a student or existing admin. Students will be promoted to society admin role.</p>
             )}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Society Logo</label>
+            <div className="flex items-start gap-3">
+              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-white">
+                {editLogoPreviewLoading && !editPendingLogoFile ? (
+                  <Loader2 size={20} className="animate-spin text-gray-400" />
+                ) : (
+                  <img
+                    src={editLogoPreview || FALLBACK_IMAGE_URL}
+                    alt="Society logo preview"
+                    className="h-full w-full object-contain"
+                  />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <label
+                    className={`inline-flex items-center px-3 py-2 rounded-lg text-white text-sm cursor-pointer transition ${editLogoUploading || saving ? "opacity-70 cursor-not-allowed" : "hover:opacity-90"}`}
+                    style={{ background: "#6a509b" }}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleEditLogoUpload}
+                      disabled={editLogoUploading || saving}
+                    />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Choose Logo
+                  </label>
+                  {(editPendingLogoFile || editLogoInitialKey) && (
+                    <button
+                      type="button"
+                      onClick={removeEditLogo}
+                      disabled={editLogoUploading || saving}
+                      className="inline-flex items-center px-3 py-2 rounded-lg text-sm bg-red-50 text-red-600 hover:bg-red-100 transition"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">Optional. Recommended: square image, 300x300px, PNG or JPG, max 2MB.</p>
+                {editLogoError && <p className="text-xs text-red-500">{editLogoError}</p>}
+              </div>
+            </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Description</label>

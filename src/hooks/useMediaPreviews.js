@@ -74,7 +74,7 @@ export function useMediaPreviews(media) {
     return () => {
       cancelled = true;
     };
-  }, [signature, media]);
+  }, [signature]);
 
   return previews;
 }

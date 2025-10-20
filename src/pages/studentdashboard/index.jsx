@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   User,
@@ -19,6 +19,7 @@ import {
   LogOut,
   MessageSquare,
   Heart,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
@@ -44,6 +45,7 @@ import { fetchMatchmakerQuiz, submitMatchmakerQuizAnswers } from "@/services/qui
 import { listNotifications, markNotificationSeen } from "@/services/notifications";
 import { getPostsFeed, togglePostLike } from "@/services/posts";
 import { MediaPreviewGrid } from "@/components/ui/MediaPreviewGrid.jsx";
+import { useMediaPreviews } from "@/hooks/useMediaPreviews.js";
 import brandIcon from "@/assets/icon1.png";
 
 // Brand palette
@@ -53,6 +55,8 @@ const colors = {
   lilac: "#ac98cd",
   plum: "#6a509b",
 };
+
+const FALLBACK_IMAGE_URL = "https://pukkeconnect.s3.eu-central-1.amazonaws.com/imageplaceholder.jpg";
 
 const MEMBERSHIP_STATUS_ALIASES = new Map([
   ["pending", "pending"],
@@ -234,7 +238,7 @@ function Shell({ page, setPage, children, student, studentLoading }) {
             <button
               onClick={() => {
                 logout();
-                window.location.href = '/';
+                navigate("/", { replace: true });
               }}
               className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-opacity-80"
               style={{ background: colors.plum, color: 'white' }}
@@ -1381,6 +1385,15 @@ function ExplorePage({ societies, onJoin, onLeave }) {
 
     const mapStatus = id ? studentMembershipsMap.get(id) ?? null : null;
     const rawStatus = mapStatus ?? item.membershipStatus ?? item.status ?? null;
+
+    const logoKey =
+      item.logo?.key ??
+      item.logoKey ??
+      item.logo_storage_key ??
+      item.logoKey ??
+      item.logo_key ??
+      item.society?.logo?.key ??
+      null;
     const normalizedStatus = normalizeMembershipStatusValue(rawStatus);
     const isActiveMember =
       joinedIds.has(id) ||
@@ -1433,6 +1446,8 @@ function ExplorePage({ societies, onJoin, onLeave }) {
       membershipStatus,
       membershipStatusLabel: formatMembershipStatusLabel(membershipStatus ?? rawStatus ?? null),
       counts,
+      logo: logoKey ? { key: logoKey } : null,
+      logoKey,
     };
   }, [joinedIds, studentMembershipsMap]);
 
@@ -2251,6 +2266,8 @@ function mergeSocietySnapshot(base, detail) {
     membershipStatusLabel: base?.membershipStatusLabel ?? detail?.membershipStatusLabel ?? null,
     isMember: base?.isMember ?? true,
     role: base?.role ?? base?.membershipRole ?? null,
+    logo: detail?.logo ?? base?.logo ?? (detail?.logoKey || base?.logoKey ? { key: detail?.logoKey ?? base?.logoKey } : null),
+    logoKey: detail?.logo?.key ?? detail?.logoKey ?? base?.logo?.key ?? base?.logoKey ?? null,
   };
 }
 
@@ -2313,6 +2330,12 @@ function MySocietyCard({ society, loadingDetail, detailError, onLeave }) {
   const category = society?.category ?? null;
   const campus = society?.campus ?? null;
 
+  const logoKey = society?.logo?.key ?? society?.logoKey ?? null;
+  const logoPreviewItems = useMediaPreviews(logoKey ? [{ key: logoKey }] : []);
+  const logoEntry = logoPreviewItems[0] ?? null;
+  const logoUrl = logoEntry?.url || null;
+  const logoLoading = logoEntry?.loading ?? false;
+
   const membershipStatus = society?.membershipStatus ?? society?.status ?? null;
   const normalizedStatus = normalizeMembershipStatusValue(membershipStatus);
   const statusLabel = normalizedStatus
@@ -2355,12 +2378,20 @@ function MySocietyCard({ society, loadingDetail, detailError, onLeave }) {
     <div className="overflow-hidden rounded-3xl border border-mediumpur/20 bg-white shadow-sm">
       <div className="flex flex-col xl:flex-row">
         <div
-          className="flex items-center justify-center px-6 py-12 text-sm text-white/90 xl:w-1/3"
-          style={{
-            background: `linear-gradient(135deg, ${colors.plum} 0%, ${colors.lilac} 60%, rgba(255,255,255,0.95) 100%)`,
-          }}
+          className="flex items-center justify-center px-6 py-10 xl:w-1/3"
+          style={{ background: `linear-gradient(135deg, ${colors.plum} 0%, ${colors.lilac} 65%, rgba(255,255,255,0.9) 100%)` }}
         >
-          <span className="text-center">Society visuals coming soon</span>
+          <div className="relative flex h-44 w-44 items-center justify-center overflow-hidden rounded-3xl border-2 border-white/60 bg-white/90 shadow-lg">
+            {logoLoading ? (
+              <Loader2 size={28} className="animate-spin text-mediumpur" />
+            ) : (
+              <img
+                src={logoUrl || FALLBACK_IMAGE_URL}
+                alt={`${society?.name ?? "Society"} logo`}
+                className="h-full w-full object-contain"
+              />
+            )}
+          </div>
         </div>
         <div className="flex-1 space-y-4 p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -2639,6 +2670,12 @@ function ExploreSocietyCard({ society, onView }) {
   else if (joined) chips.push("Joined");
   const canOpen = Boolean(society?.id);
 
+  const logoKey = society?.logo?.key ?? society?.logoKey ?? null;
+  const logoPreviewItems = useMediaPreviews(logoKey ? [{ key: logoKey }] : []);
+  const logoEntry = logoPreviewItems[0] ?? null;
+  const logoUrl = logoEntry?.url || null;
+  const logoLoading = logoEntry?.loading ?? false;
+
   return (
     <div
       className="flex min-h-[260px] flex-col justify-between rounded-3xl p-4 shadow-sm"
@@ -2648,6 +2685,21 @@ function ExploreSocietyCard({ society, onView }) {
       }}
     >
       <div className="space-y-3">
+        <div className="relative w-full overflow-hidden rounded-2xl border border-mediumpur/20 bg-white/60">
+          <div className="w-full" style={{ paddingTop: "68%" }}>
+            {logoLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center text-mediumpur/60">
+                <Loader2 size={24} className="animate-spin" />
+              </div>
+            ) : (
+              <img
+                src={logoUrl || FALLBACK_IMAGE_URL}
+                alt={`${name} logo`}
+                className="absolute inset-0 h-full w-full object-contain bg-white"
+              />
+            )}
+          </div>
+        </div>
         <div className="flex items-center justify-between text-xs uppercase tracking-wide" style={{ color: colors.plum }}>
           <span>{category}</span>
           {joined && (
@@ -2831,6 +2883,12 @@ function ExploreSocietyModal({
   const recentEvents = Array.isArray(society?.recentEvents) ? society.recentEvents : [];
   const recentPosts = Array.isArray(society?.recentPosts) ? society.recentPosts : [];
 
+  const logoKey = society?.logo?.key ?? society?.logoKey ?? null;
+  const logoPreviewItems = useMediaPreviews(logoKey ? [{ key: logoKey }] : []);
+  const logoEntry = logoPreviewItems[0] ?? null;
+  const logoUrl = logoEntry?.url || null;
+  const logoLoading = logoEntry?.loading ?? false;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
       <div
@@ -2838,7 +2896,7 @@ function ExploreSocietyModal({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-3xl max-h-[90vh] rounded-3xl bg-white shadow-2xl flex flex-col">
+      <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-3xl bg-white shadow-2xl">
         <button
           type="button"
           onClick={onClose}
@@ -2848,15 +2906,19 @@ function ExploreSocietyModal({
           ×
         </button>
 
-        <div
-          className="h-40 w-full flex-shrink-0 rounded-t-3xl"
-          style={{
-            background: `linear-gradient(135deg, ${colors.plum} 0%, ${colors.lilac} 50%, rgba(255,255,255,0.9) 100%)`,
-          }}
-        >
-          <div className="flex h-full items-center justify-center text-sm text-white/90">
-            Society photo coming soon
-          </div>
+        <div className="relative w-full flex-shrink-0 overflow-hidden rounded-t-3xl" style={{ paddingTop: "45%", background: `linear-gradient(135deg, ${colors.plum} 0%, ${colors.lilac} 60%, rgba(255,255,255,0.85) 100%)` }}>
+          {logoLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center text-mediumpur">
+              <Loader2 size={28} className="animate-spin" />
+            </div>
+          ) : (
+            <img
+              src={logoUrl || FALLBACK_IMAGE_URL}
+              alt={`${society?.name ?? "Society"} logo`}
+              className="absolute inset-0 h-full w-full object-contain"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-black/5 to-transparent" />
         </div>
 
         <div className="space-y-6 p-6 overflow-y-auto">
@@ -4044,6 +4106,7 @@ function QBlock({ q, opts }) {
 // Original App component, renamed to StudentDashboardApp
 function StudentDashboardApp() {
   const location = useLocation();
+  const navigate = useNavigate();
   const initialPage = location.state?.page || "dashboard";
   const [page, setPage] = useState(initialPage);
   const [loading, setLoading] = useState(true);

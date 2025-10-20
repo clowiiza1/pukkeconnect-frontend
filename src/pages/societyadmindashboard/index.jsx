@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api, asApiError } from "@/services/apis.jsx";
 import {
@@ -78,6 +78,8 @@ const colors = {
   lilac: "#ac98cd",
   plum: "#6a509b",
 };
+
+const FALLBACK_IMAGE_URL = "https://pukkeconnect.s3.eu-central-1.amazonaws.com/imageplaceholder.jpg";
 
 // Reusable UI
 function Card({ title, subtitle, action, children }) {
@@ -241,6 +243,7 @@ const mockParticipation = [
 function Shell({ page, setPage, children, hasSociety }) {
   const [open, setOpen] = useState(true);
   const { user, logout } = useAuth(); // Get user from AuthContext
+  const navigate = useNavigate();
 
   // Nav items for admins WITH a society
   const fullNav = [
@@ -313,7 +316,7 @@ function Shell({ page, setPage, children, hasSociety }) {
             <button
               onClick={() => {
                 logout();
-                window.location.href = '/';
+                navigate("/", { replace: true });
               }}
               className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-opacity-80"
               style={{ background: colors.plum, color: 'white' }}
@@ -4424,8 +4427,13 @@ function RequestsPage() {
 //======= Settings Page ======//
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState("Profile");
-  const [societyLogo, setSocietyLogo] = useState(null);
-  const [logoPreview, setLogoPreview] = useState("");
+  const [logoKey, setLogoKey] = useState(null);
+  const [initialLogoKey, setInitialLogoKey] = useState(null);
+  const [pendingLogoFile, setPendingLogoFile] = useState(null);
+  const [pendingLogoPreview, setPendingLogoPreview] = useState(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState(null);
   const [formData, setFormData] = useState({
     societyName: "",
     category: "",
@@ -4446,6 +4454,25 @@ function SettingsPage() {
   const [societyId, setSocietyId] = useState(null);
   const [originalFormData, setOriginalFormData] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
+
+  const logoPreviewItems = useMediaPreviews(logoKey ? [{ key: logoKey }] : []);
+  const logoPreviewEntry = logoPreviewItems[0] ?? null;
+  const remoteLogoUrl = logoPreviewEntry?.url || "";
+  const remoteLogoLoading = logoPreviewEntry?.loading ?? false;
+  const remoteLogoFailed = logoPreviewEntry?.error ?? false;
+  const effectiveLogoUrl =
+    pendingLogoPreview ||
+    (logoKey && !remoteLogoFailed ? remoteLogoUrl : null);
+  const showLogoSpinner = !pendingLogoPreview && (remoteLogoLoading || logoUploading);
+  const isLogoMissing = !effectiveLogoUrl;
+
+  useEffect(() => {
+    return () => {
+      if (pendingLogoPreview) {
+        URL.revokeObjectURL(pendingLogoPreview);
+      }
+    };
+  }, [pendingLogoPreview]);
 
   // Load society data and user data on mount
   useEffect(() => {
@@ -4478,10 +4505,17 @@ function SettingsPage() {
         setFormData(initialData);
         setOriginalFormData(initialData);
 
-        // Set logo preview if exists
-        if (societyData.logoUrl) {
-          setLogoPreview(societyData.logoUrl);
-        }
+        setPendingLogoFile(null);
+        setPendingLogoPreview((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return null;
+        });
+        setLogoRemoved(false);
+
+        const initialLogo = societyData?.logo?.key ?? null;
+        setLogoKey(initialLogo);
+        setInitialLogoKey(initialLogo);
+        setLogoUploadError(null);
 
       } catch (error) {
         console.error("Error loading data:", error);
@@ -4499,10 +4533,16 @@ function SettingsPage() {
   // Check if form has changes
   useEffect(() => {
     if (activeTab === "Profile") {
+      const logoChanged =
+        pendingLogoFile !== null ||
+        (logoRemoved && initialLogoKey !== null) ||
+        (!logoRemoved && pendingLogoFile === null && logoKey !== initialLogoKey);
+
       const changed =
         formData.societyName !== originalFormData.societyName ||
         formData.category !== originalFormData.category ||
-        formData.description !== originalFormData.description;
+        formData.description !== originalFormData.description ||
+        logoChanged;
       setHasChanges(changed);
     } else if (activeTab === "Security") {
       const changed =
@@ -4511,7 +4551,15 @@ function SettingsPage() {
         formData.phoneNumber !== originalFormData.phoneNumber;
       setHasChanges(changed);
     }
-  }, [formData, originalFormData, activeTab]);
+  }, [
+    formData,
+    originalFormData,
+    activeTab,
+    logoKey,
+    initialLogoKey,
+    pendingLogoFile,
+    logoRemoved,
+  ]);
 
   // Mock function to check admin authorization (Alternative Flow 2b)
   const checkAdminAuthorization = () => {
@@ -4526,25 +4574,31 @@ function SettingsPage() {
       return;
     }
 
-    const file = event.target.files[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setValidationErrors({ logo: "Please upload a valid image file (PNG, JPG, JPEG)" });
-        return;
-      }
-      if (file.size > 2 * 1024 * 1024) {
-        setValidationErrors({ logo: "Image must be less than 2MB" });
-        return;
-      }
+    const file = event.target.files?.[0];
+    event.target.value = "";
 
-      setSocietyLogo(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-      setValidationErrors(prev => ({ ...prev, logo: "" }));
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setValidationErrors((prev) => ({ ...prev, logo: "Please upload a valid image file (PNG, JPG, JPEG)" }));
+      return;
     }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setValidationErrors((prev) => ({ ...prev, logo: "Image must be less than 2MB" }));
+      return;
+    }
+
+    if (pendingLogoPreview) {
+      URL.revokeObjectURL(pendingLogoPreview);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setPendingLogoFile(file);
+    setPendingLogoPreview(previewUrl);
+    setLogoRemoved(false);
+    setLogoUploadError(null);
+    setValidationErrors((prev) => ({ ...prev, logo: undefined }));
   };
 
   const removeLogo = () => {
@@ -4552,8 +4606,15 @@ function SettingsPage() {
       setValidationErrors({ authorization: "You are not authorized to modify society settings." });
       return;
     }
-    setSocietyLogo(null);
-    setLogoPreview("");
+    setPendingLogoFile(null);
+    setPendingLogoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setLogoKey(null);
+    setLogoRemoved(true);
+    setLogoUploadError(null);
+    setValidationErrors((prev) => ({ ...prev, logo: undefined }));
   };
 
   // Handle input changes (Main Flow step 2)
@@ -4631,20 +4692,67 @@ function SettingsPage() {
         const updateData = {
           name: formData.societyName,
           category: formData.category,
-          description: formData.description
+          description: formData.description,
         };
 
-        // TODO: Handle logo upload separately when backend endpoint is ready
-        // For now, logo upload is deferred to Phase 4
+        let nextLogoKey = initialLogoKey;
+        let uploadedLogo = null;
+
+        if (pendingLogoFile) {
+          try {
+            setLogoUploading(true);
+            const presign = await presignUpload({
+              scope: "society",
+              folder: `logos/${societyId}`,
+              fileName: pendingLogoFile.name,
+              contentType: pendingLogoFile.type,
+              size: pendingLogoFile.size,
+            });
+
+            await uploadFileToPresignedUrl(presign.uploadUrl, pendingLogoFile);
+            uploadedLogo = presign;
+            nextLogoKey = presign.key;
+          } catch (error) {
+            console.error("Failed to upload logo", error);
+            setLogoUploadError("Failed to upload logo. Please try again.");
+            setValidationErrors((prev) => ({ ...prev, logo: "Failed to upload logo. Please try again." }));
+            throw error;
+          } finally {
+            setLogoUploading(false);
+          }
+        } else if (logoRemoved && initialLogoKey) {
+          nextLogoKey = null;
+        }
+
+        if (pendingLogoFile || (logoRemoved && initialLogoKey)) {
+          updateData.logo = nextLogoKey ? { key: nextLogoKey } : null;
+        }
 
         await updateSociety(societyId, updateData);
 
+        if (initialLogoKey && initialLogoKey !== nextLogoKey) {
+          invalidateDownloadUrl(initialLogoKey);
+        }
+        if (uploadedLogo) {
+          primeDownloadCache(uploadedLogo.key, uploadedLogo.downloadUrl, uploadedLogo.downloadExpiresIn);
+        }
+
+        setInitialLogoKey(nextLogoKey);
+        setLogoKey(nextLogoKey);
+        setPendingLogoFile(null);
+        setPendingLogoPreview((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return null;
+        });
+        setLogoRemoved(false);
+        setLogoUploadError(null);
+
         // Update original form data to reflect saved state
-        setOriginalFormData(prev => ({
+        setOriginalFormData((prev) => ({
           ...prev,
           societyName: formData.societyName,
           category: formData.category,
-          description: formData.description
+          description: formData.description,
         }));
 
         console.log("Society profile updated successfully");
@@ -4690,16 +4798,15 @@ function SettingsPage() {
 
   // Reset form
   const handleCancel = () => {
-    setFormData({
-      societyName: "AI & Robotics Society",
-      category: "Technology",
-      description: "We host weekly workshops on ML, robotics, and hack nights.",
-      adminName: "John",
-      adminSurname: "Doe",
-      email: "admin@airobotics.com",
-      password: "",
-      confirmPassword: ""
-    });
+    setFormData({ ...originalFormData });
+    if (pendingLogoPreview) {
+      URL.revokeObjectURL(pendingLogoPreview);
+    }
+    setPendingLogoFile(null);
+    setPendingLogoPreview(null);
+    setLogoKey(initialLogoKey);
+    setLogoRemoved(false);
+    setLogoUploadError(null);
     setValidationErrors({});
     setSaveStatus("");
   };
@@ -4803,39 +4910,22 @@ function SettingsPage() {
           <p className="text-sm text-gray-600 mb-6">Update your society's public profile information visible to students.</p>
 
           {/* Logo Upload Section */}
-          <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
-            <div className="flex items-center gap-2">
-              <div className="text-yellow-800 font-semibold">🚧 Coming Soon</div>
-            </div>
-            <div className="text-sm text-yellow-700 mt-1">
-              Photo upload functionality is currently under development and will be available soon.
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-start gap-6 mb-8 p-4 bg-gray-50 rounded-xl opacity-60 pointer-events-none">
+          <div className="flex flex-col sm:flex-row items-start gap-6 mb-8 p-4 bg-gray-50 rounded-xl">
             <div className="flex-shrink-0">
-              <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-white">
-                {logoPreview ? (
+              <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-white relative">
+                {showLogoSpinner ? (
+                  <Loader2 size={24} className="animate-spin text-gray-400" />
+                ) : (
                   <img
-                    src={logoPreview}
+                    src={effectiveLogoUrl || FALLBACK_IMAGE_URL}
                     alt="Society logo"
                     className="w-full h-full object-cover"
                   />
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-8 w-8 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
+                )}
+                {isLogoMissing && !showLogoSpinner && (
+                  <span className="absolute bottom-1 inset-x-1 rounded-lg bg-white/80 text-xs text-gray-600 text-center py-0.5">
+                    No logo uploaded
+                  </span>
                 )}
               </div>
             </div>
@@ -4846,28 +4936,35 @@ function SettingsPage() {
                   Society Logo
                 </label>
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <label className="cursor-not-allowed">
+                  <label className={`inline-flex items-center px-4 py-2 rounded-xl text-white text-sm cursor-pointer transition ${logoUploading || isSubmitting ? "opacity-70 cursor-not-allowed" : "hover:opacity-90"}`}
+                    style={{ background: colors.plum }}>
                     <input
                       type="file"
                       accept="image/*"
-                      disabled
                       className="hidden"
+                      onChange={handleLogoUpload}
+                      disabled={logoUploading || isSubmitting}
                     />
-                    <span className="inline-flex items-center px-4 py-2 rounded-xl text-white text-sm"
-                      style={{ background: colors.plum }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      Upload Logo
-                    </span>
+                    {logoUploading ? (
+                      <>
+                        <Loader2 size={16} className="mr-2 animate-spin" /> Uploading…
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Upload Logo
+                      </>
+                    )}
                   </label>
 
-                  {logoPreview && (
+                  {(logoKey || pendingLogoFile) && (
                     <button
                       type="button"
-                      disabled
-                      className="inline-flex items-center px-4 py-2 rounded-xl text-sm"
-                      style={{ background: colors.mist }}
+                      onClick={removeLogo}
+                      disabled={logoUploading || isSubmitting}
+                      className="inline-flex items-center px-4 py-2 rounded-xl text-sm bg-red-50 text-red-600 hover:bg-red-100 transition"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -4876,8 +4973,8 @@ function SettingsPage() {
                     </button>
                   )}
                 </div>
-                {validationErrors.logo && (
-                  <p className="text-red-500 text-sm mt-2">{validationErrors.logo}</p>
+                {(logoUploadError || validationErrors.logo) && (
+                  <p className="text-red-500 text-sm mt-2">{validationErrors.logo || logoUploadError}</p>
                 )}
               </div>
               <p className="text-sm text-gray-500">

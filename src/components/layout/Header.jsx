@@ -34,6 +34,11 @@ export default function Header() {
   const location = useLocation();
   const { isAuthenticated, dashboardPath, logout } = useAuth();
 
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
+
   const goAuth = (kind) => navigate({ pathname: "/", search: `?auth=${kind}` });
 
   const dashboardHref = dashboardPath || "/";
@@ -100,7 +105,7 @@ export default function Header() {
               </>
             ) : (
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="rounded-4xl border border-dark/30 px-4 py-2 text-white bg-gradient-to-r from-mediumpur to-softlav hover:opacity-90 transition"
               >
                 Logout
@@ -164,7 +169,7 @@ export default function Header() {
               </>
             ) : (
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="rounded-lg border border-dark/30 px-4 py-2 text-dark hover:bg-lightgr flex items-center gap-2"
               >
                 <FontAwesomeIcon icon={faArrowRightFromBracket} />
