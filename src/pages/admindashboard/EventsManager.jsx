@@ -2,6 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { Edit3, Filter, Loader2, RotateCw, Search, Trash2, X } from "lucide-react";
 import { fetchAdminEvents, updateAdminEvent, deleteAdminEvent } from "@/services/admin.js";
+import {
+  presignUpload,
+  uploadFileToPresignedUrl,
+  getCachedDownloadUrl,
+  invalidateDownloadUrl,
+} from "@/services/uploads.jsx";
 
 const pageSize = 20;
 
@@ -114,12 +120,38 @@ export default function EventsManager({ campusOptions = [] }) {
     campus: "",
     eventDate: "",
   });
+  const [posterState, setPosterState] = useState({
+    file: null,
+    preview: null,
+    isObjectUrl: false,
+    existingKey: null,
+    loading: false,
+    removed: false,
+    error: null,
+  });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [banner, setBanner] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const timeoutRef = useRef(null);
+
+  const resetPosterState = () => {
+    setPosterState((prev) => {
+      if (prev.isObjectUrl && prev.preview) {
+        URL.revokeObjectURL(prev.preview);
+      }
+      return {
+        file: null,
+        preview: null,
+        isObjectUrl: false,
+        existingKey: null,
+        loading: false,
+        removed: false,
+        error: null,
+      };
+    });
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -185,10 +217,26 @@ export default function EventsManager({ campusOptions = [] }) {
     };
     setEditForm(initialForm);
     setOriginalEditForm(initialForm);
+    setPosterState((prev) => {
+      if (prev.isObjectUrl && prev.preview) {
+        URL.revokeObjectURL(prev.preview);
+      }
+      const existingKey = event?.poster?.key ?? null;
+      return {
+        file: null,
+        preview: null,
+        isObjectUrl: false,
+        existingKey,
+        loading: Boolean(existingKey),
+        removed: false,
+        error: null,
+      };
+    });
   };
 
   const closeEdit = () => {
     if (saving) return;
+    resetPosterState();
     setEditTarget(null);
   };
 
@@ -198,8 +246,86 @@ export default function EventsManager({ campusOptions = [] }) {
       editForm.description.trim() !== originalEditForm.description.trim() ||
       editForm.location.trim() !== originalEditForm.location.trim() ||
       editForm.campus !== originalEditForm.campus ||
-      editForm.eventDate !== originalEditForm.eventDate
+      editForm.eventDate !== originalEditForm.eventDate ||
+      Boolean(posterState.file) ||
+      posterState.removed
     );
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPosterPreview = async () => {
+      if (!posterState.existingKey || posterState.file || posterState.removed) return;
+      setPosterState((prev) => ({ ...prev, loading: true, error: null }));
+      try {
+        const url = await getCachedDownloadUrl(posterState.existingKey);
+        if (cancelled) return;
+        setPosterState((prev) => ({
+          ...prev,
+          preview: url,
+          loading: false,
+          error: null,
+        }));
+      } catch (error) {
+        if (cancelled) return;
+        setPosterState((prev) => ({
+          ...prev,
+          preview: null,
+          loading: false,
+          error: "Unable to load current poster.",
+        }));
+      }
+    };
+
+    if (posterState.existingKey && !posterState.file) {
+      loadPosterPreview();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [posterState.existingKey, posterState.file, posterState.removed]);
+
+  const handlePosterSelect = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type || !file.type.startsWith("image/")) {
+      setPosterState((prev) => ({ ...prev, error: "Please choose an image file." }));
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setPosterState((prev) => ({ ...prev, error: "Images must be 10MB or smaller." }));
+      return;
+    }
+    setPosterState((prev) => {
+      if (prev.isObjectUrl && prev.preview) URL.revokeObjectURL(prev.preview);
+      return {
+        file,
+        preview: URL.createObjectURL(file),
+        isObjectUrl: true,
+        existingKey: prev.existingKey,
+        loading: false,
+        removed: false,
+        error: null,
+      };
+    });
+  };
+
+  const handlePosterRemove = () => {
+    setPosterState((prev) => {
+      if (prev.isObjectUrl && prev.preview) URL.revokeObjectURL(prev.preview);
+      return {
+        file: null,
+        preview: null,
+        isObjectUrl: false,
+        existingKey: null,
+        loading: false,
+        removed: Boolean(prev.existingKey) || prev.removed,
+        error: null,
+      };
+    });
   };
 
   const handleEditSubmit = async (event) => {
@@ -207,12 +333,37 @@ export default function EventsManager({ campusOptions = [] }) {
     if (!editTarget) return;
     setSaving(true);
     try {
-      await updateAdminEvent(editTarget.eventId, {
+      let posterReference;
+      if (posterState.file) {
+        const presign = await presignUpload({
+          scope: "event",
+          folder: "posters/admin",
+          fileName: posterState.file.name,
+          contentType: posterState.file.type || "application/octet-stream",
+          size: posterState.file.size,
+        });
+        await uploadFileToPresignedUrl(presign.uploadUrl, posterState.file);
+        posterReference = { key: presign.key };
+        if (posterState.existingKey && posterState.existingKey !== presign.key) {
+          invalidateDownloadUrl(posterState.existingKey);
+        }
+      } else if (posterState.removed) {
+        posterReference = null;
+        if (posterState.existingKey) invalidateDownloadUrl(posterState.existingKey);
+      }
+
+      const payload = {
         title: editForm.title,
         description: editForm.description,
         location: editForm.location,
         startsAt: editForm.eventDate ? new Date(editForm.eventDate).toISOString() : null,
-      });
+      };
+
+      if (posterReference !== undefined) {
+        payload.poster = posterReference;
+      }
+
+      await updateAdminEvent(editTarget.eventId, payload);
 
       showBanner("success", "Event updated successfully");
       setReloadKey((value) => value + 1);
@@ -460,6 +611,50 @@ export default function EventsManager({ campusOptions = [] }) {
         )}
       >
         <form id="admin-edit-event" className="space-y-4" onSubmit={handleEditSubmit}>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Event poster</label>
+            <div className="flex flex-col gap-3">
+              <div className="relative flex h-40 w-full items-center justify-center overflow-hidden rounded-2xl border border-dashed border-gray-300 bg-gray-50">
+                {posterState.loading ? (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Loader2 size={18} className="animate-spin" />
+                    <span className="text-xs">Loading current poster…</span>
+                  </div>
+                ) : posterState.preview ? (
+                  <img
+                    src={posterState.preview}
+                    alt="Event poster preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-1 text-xs text-gray-500">
+                    <span>No poster selected</span>
+                    <span>Upload or change the event artwork below.</span>
+                  </div>
+                )}
+              </div>
+              {posterState.error && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  {posterState.error}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100">
+                  <input type="file" accept="image/*" className="hidden" onChange={handlePosterSelect} />
+                  Upload photo
+                </label>
+                {(posterState.preview || posterState.existingKey) && (
+                  <button
+                    type="button"
+                    onClick={handlePosterRemove}
+                    className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                  >
+                    {posterState.removed && !posterState.file ? "Removed" : "Remove"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <div className="space-y-1">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Title</label>
             <input
