@@ -209,6 +209,10 @@ export async function createEvent(societyId, eventData) {
       capacity: eventData.capacity ? parseInt(eventData.capacity) : null
     };
 
+    if (eventData.poster !== undefined) {
+      payload.poster = eventData.poster;
+    }
+
     const response = await api.post(`/societies/${societyId}/events`, payload);
     return response.data;
   } catch (error) {
@@ -233,6 +237,10 @@ export async function updateEvent(eventId, eventData) {
       location: eventData.location,
       capacity: eventData.capacity ? parseInt(eventData.capacity) : null
     };
+
+    if (eventData.poster !== undefined) {
+      payload.poster = eventData.poster;
+    }
 
     const response = await api.put(`/events/${eventId}`, payload);
     return response.data;

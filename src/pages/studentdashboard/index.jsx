@@ -46,7 +46,14 @@ import { listNotifications, markNotificationSeen } from "@/services/notification
 import { getPostsFeed, togglePostLike } from "@/services/posts";
 import { MediaPreviewGrid } from "@/components/ui/MediaPreviewGrid.jsx";
 import { useMediaPreviews } from "@/hooks/useMediaPreviews.js";
+import { getCachedDownloadUrl, invalidateDownloadUrl } from "@/services/uploads.jsx";
 import brandIcon from "@/assets/icon1.png";
+
+const NotificationsContext = React.createContext({ unseenCount: 0, setUnseenCount: () => {} });
+
+function useNotifications() {
+  return React.useContext(NotificationsContext);
+}
 
 // Brand palette
 const colors = {
@@ -56,7 +63,7 @@ const colors = {
   plum: "#6a509b",
 };
 
-const FALLBACK_IMAGE_URL = "https://pukkeconnect.s3.eu-central-1.amazonaws.com/imageplaceholder.jpg";
+const FALLBACK_IMAGE_URL = brandIcon;
 
 const MEMBERSHIP_STATUS_ALIASES = new Map([
   ["pending", "pending"],
@@ -161,19 +168,29 @@ function formatMembershipStatusLabel(status) {
 }
 
 // Simple layout shell with responsive sidebar
-function Shell({ page, setPage, children, student, studentLoading }) {
+function Shell({ page, setPage, children, student, studentLoading, unseenNotifications }) {
   const [open, setOpen] = useState(true);
   const { logout } = useAuth();
-  const nav = [
-    { key: "dashboard", label: "Overview", icon: <LayoutDashboard size={18} /> },
-    { key: "profile", label: "My Profile", icon: <User size={18} /> },
-    { key: "explore", label: "Explore", icon: <Compass size={18} /> },
-    { key: "details", label: "Societies", icon: <Sparkles size={18} /> },
-    { key: "posts", label: "Posts", icon: <MessageSquare size={18} /> },
-    { key: "quiz", label: "Quiz", icon: <Inbox size={18} /> },
-    { key: "notifications", label: "Notifications", icon: <Bell size={18} /> },
-    { key: "events", label: "Events", icon: <CalendarDays size={18} /> },
-  ];
+  const nav = useMemo(() => {
+    const base = [
+      { key: "dashboard", label: "Overview", icon: <LayoutDashboard size={18} /> },
+      { key: "profile", label: "My Profile", icon: <User size={18} /> },
+      { key: "explore", label: "Explore", icon: <Compass size={18} /> },
+      { key: "details", label: "Societies", icon: <Sparkles size={18} /> },
+      { key: "posts", label: "Posts", icon: <MessageSquare size={18} /> },
+      { key: "quiz", label: "Quiz", icon: <Inbox size={18} /> },
+      { key: "notifications", label: "Notifications", icon: <Bell size={18} /> },
+      { key: "events", label: "Events", icon: <CalendarDays size={18} /> },
+    ];
+    if (unseenNotifications > 0) {
+      return base.map((item) =>
+        item.key === "notifications"
+          ? { ...item, badge: unseenNotifications }
+          : item
+      );
+    }
+    return base;
+  }, [unseenNotifications]);
 
   const firstName = typeof student?.firstName === "string" ? student.firstName.trim() : "";
   const lastName = typeof student?.lastName === "string" ? student.lastName.trim() : "";
@@ -258,25 +275,29 @@ function Shell({ page, setPage, children, student, studentLoading }) {
             style={{ background: "white", border: `1px solid ${colors.mist}` }}
           >
             <nav className="space-y-1">
-              {nav.map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setPage(item.key)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-left transition hover:bg-mist ${page === item.key ? "text-white" : "text-gray-800"}`}
-                  style={{
-                    background: page === item.key ? colors.lilac : "transparent",
-                  }}
-                >
-                  {/* Wrapped icon in a div with flex-shrink-0 to prevent shrinking */}
-                  <div className="flex-shrink-0">
-                    {item.icon}
-                  </div>
-                  {/*  truncate to the span for text overflow handling */}
-                  <span className="text-sm font-medium truncate">{item.label}</span>
-                  {/* flex-shrink-0 to ChevronRight as well */}
-                  {page === item.key && <ChevronRight className="ml-auto flex-shrink-0" size={16} />}
-                </button>
-              ))}
+              {nav.map((item) => {
+                const active = page === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setPage(item.key)}
+                    className={`relative flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition hover:bg-mist ${
+                      active ? "text-white" : "text-gray-800"
+                    }`}
+                    style={{ background: active ? colors.lilac : "transparent" }}
+                  >
+                    <div className="flex-shrink-0">{item.icon}</div>
+                    <span className="text-sm font-medium">{item.label}</span>
+                    {item.badge && item.badge > 0 && !active && (
+                      <span className="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-xs font-semibold text-white">
+                        {item.badge > 99 ? "99+" : item.badge}
+                      </span>
+                    )}
+                    {active && <ChevronRight className="ml-auto flex-shrink-0" size={16} />}
+                  </button>
+                );
+              })}
             </nav>
 
             <div className="mt-4 p-3 rounded-2xl" style={{ background: colors.mist }}>
@@ -443,7 +464,7 @@ function matchesTokens(rail, tokens) {
   return tokens.some((token) => title.includes(token));
 }
 
-function normalizeHomeRecommendations(payload) {
+function normalizeHomeRecommendations(payload, campusFilter) {
   const rails = Array.isArray(payload?.rails) ? payload.rails.filter(Boolean) : [];
   const remaining = [...rails];
   const selection = new Map();
@@ -463,12 +484,19 @@ function normalizeHomeRecommendations(payload) {
 
   return HOME_RAIL_CONFIG.map((config) => {
     const rail = selection.get(config.key) ?? null;
-    return {
+    const normalized = {
       key: config.key,
       heading: config.getHeading?.(rail) ?? config.fallbackHeading,
       subtitle: config.getSubtitle?.(rail) ?? config.fallbackSubtitle,
       items: mapRecommendationItems(rail?.items),
     };
+    if (!campusFilter) return normalized;
+    const needle = campusFilter.toLowerCase();
+    const filteredItems = normalized.items.filter((entry) => {
+      const campus = typeof entry?.campus === "string" ? entry.campus.trim().toLowerCase() : "";
+      return campus === needle;
+    });
+    return { ...normalized, items: filteredItems };
   });
 }
 
@@ -1063,6 +1091,8 @@ function ProfilePage() {
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [catalog, profileForm.interests]);
+  const [showAllInterests, setShowAllInterests] = useState(false);
+  const INTEREST_PREVIEW_LIMIT = 12;
 
   const isDirty = profileDirty || userDirty;
   const validationMessage = !namesValid
@@ -1181,14 +1211,6 @@ function ProfilePage() {
                   <div className="text-xs opacity-70">{email}</div>
                 )}
               </div>
-              <button
-                type="button"
-                className="rounded-2xl px-3 py-1 text-sm text-white opacity-60"
-                style={{ background: colors.plum }}
-                disabled
-              >
-                Photo uploads coming soon
-              </button>
             </div>
           </div>
           <div className="space-y-4 md:col-span-2">
@@ -1233,18 +1255,29 @@ function ProfilePage() {
                   {combinedCatalog.length === 0 && (
                     <span className="text-xs opacity-60">No interests available yet.</span>
                   )}
-                  {combinedCatalog.map((item) => {
-                    const selected = profileForm.interests.includes(item.name);
-                    return (
-                      <InterestChip
-                        key={item.id}
-                        active={selected}
-                        label={item.name}
-                        onClick={() => toggleInterest(item.name)}
-                      />
-                    );
-                  })}
+                  {combinedCatalog
+                    .slice(0, showAllInterests ? combinedCatalog.length : INTEREST_PREVIEW_LIMIT)
+                    .map((item) => {
+                      const selected = profileForm.interests.includes(item.name);
+                      return (
+                        <InterestChip
+                          key={item.id}
+                          active={selected}
+                          label={item.name}
+                          onClick={() => toggleInterest(item.name)}
+                        />
+                      );
+                    })}
                 </div>
+                {combinedCatalog.length > INTEREST_PREVIEW_LIMIT && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllInterests((open) => !open)}
+                    className="rounded-2xl border border-mediumpur/40 px-3 py-1 text-xs font-medium text-mediumpur transition-colors hover:bg-lilac/10"
+                  >
+                    {showAllInterests ? "Show less" : `Show ${combinedCatalog.length - INTEREST_PREVIEW_LIMIT} more`}
+                  </button>
+                )}
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <div title={saveTooltip} className={saveDisabled ? "cursor-not-allowed" : ""}>
@@ -1285,7 +1318,7 @@ function ProfilePage() {
   );
 }
 
-function ExplorePage({ societies, onJoin, onLeave }) {
+function ExplorePage({ societies, onJoin, onLeave, studentCampus }) {
   const { push } = useToast();
   const { user } = useAuth();
   const [query, setQuery] = useState("");
@@ -1461,9 +1494,17 @@ function ExplorePage({ societies, onJoin, onLeave }) {
     return remoteSocietiesRaw.map(normalizeSociety).filter(Boolean);
   }, [remoteSocietiesRaw, normalizeSociety]);
 
+  const campusNeedle = useMemo(() => {
+    if (typeof studentCampus === "string") {
+      const trimmed = studentCampus.trim().toLowerCase();
+      if (trimmed) return trimmed;
+    }
+    return "";
+  }, [studentCampus]);
+
   const rails = useMemo(
-    () => normalizeHomeRecommendations(recommendationsPayload),
-    [recommendationsPayload]
+    () => normalizeHomeRecommendations(recommendationsPayload, campusNeedle),
+    [recommendationsPayload, campusNeedle]
   );
 
   const annotatedRails = useMemo(() => (
@@ -1572,7 +1613,11 @@ function ExplorePage({ societies, onJoin, onLeave }) {
     async function loadSocieties() {
       try {
         setLoadingSocieties(true);
-        const response = await listSocieties({ page: 1, limit: 100 });
+        const response = await listSocieties({
+          page: 1,
+          limit: 100,
+          campus: studentCampus ?? undefined,
+        });
         if (!active) return;
         const rawList = Array.isArray(response?.data)
           ? response.data
@@ -1603,9 +1648,16 @@ function ExplorePage({ societies, onJoin, onLeave }) {
     return () => {
       active = false;
     };
-  }, [fallbackNormalized.length, push, societyRefreshKey]);
+  }, [studentCampus, fallbackNormalized.length, push, societyRefreshKey]);
 
-  const combinedList = remoteNormalized ?? fallbackNormalized;
+  const combinedList = useMemo(() => {
+    const source = remoteNormalized ?? fallbackNormalized;
+    if (!campusNeedle) return source;
+    return source.filter((society) => {
+      const campus = typeof society?.campus === "string" ? society.campus.trim().toLowerCase() : "";
+      return campus === campusNeedle;
+    });
+  }, [remoteNormalized, fallbackNormalized, campusNeedle]);
 
   const availableCategories = useMemo(() => {
     const map = new Map();
@@ -1830,12 +1882,19 @@ function ExplorePage({ societies, onJoin, onLeave }) {
     setModalError(null);
   }, []);
 
+  const membershipStatusValue = useMemo(() => {
+    if (!modalState.id) return null;
+    if (derivedModalStatus) return derivedModalStatus;
+    return joinedIds.has(modalState.id) ? "active" : null;
+  }, [modalState.id, derivedModalStatus, joinedIds]);
+
   const handleMembershipAction = useCallback(async () => {
     if (!modalState.id) return;
     const joined = joinedIds.has(modalState.id);
+    const isPending = membershipStatusValue === "pending";
     setMembershipLoading(true);
     try {
-      const handler = joined ? onLeave : onJoin;
+      const handler = isPending ? onLeave : joined ? onLeave : onJoin;
       if (!handler) {
         setMembershipLoading(false);
         return;
@@ -1848,13 +1907,7 @@ function ExplorePage({ societies, onJoin, onLeave }) {
     } finally {
       setMembershipLoading(false);
     }
-  }, [joinedIds, modalState.id, onJoin, onLeave, closeModal]);
-
-  const membershipStatusValue = useMemo(() => {
-    if (!modalState.id) return null;
-    if (derivedModalStatus) return derivedModalStatus;
-    return joinedIds.has(modalState.id) ? "active" : null;
-  }, [modalState.id, derivedModalStatus, joinedIds]);
+  }, [joinedIds, membershipStatusValue, modalState.id, onJoin, onLeave, closeModal]);
 
   const modalJoined = membershipStatusValue === "active" || joinedIds.has(modalState.id ?? "");
 
@@ -2277,6 +2330,21 @@ function mapEventFromApi(item) {
   const id = eventId != null ? String(eventId) : null;
   const startsAt = item.startsAt ?? item.starts_at ?? null;
   const endsAt = item.endsAt ?? item.ends_at ?? null;
+  const posterKey =
+    item.poster?.key ??
+    item.posterKey ??
+    item.poster_key ??
+    item.poster_storage_key ??
+    null;
+  const rawRsvpStatus =
+    (item.myRsvp && (item.myRsvp.status ?? item.my_rsvp?.status)) ??
+    item.myRsvpStatus ??
+    item.studentRsvpStatus ??
+    item.rsvpStatus ??
+    null;
+  const normalizedRsvpStatus =
+    typeof rawRsvpStatus === "string" ? rawRsvpStatus : null;
+  const isGoing = normalizedRsvpStatus === "going";
   const startDate = startsAt ? new Date(startsAt) : null;
   const endDate = endsAt ? new Date(endsAt) : null;
   const startTimeMs =
@@ -2312,13 +2380,16 @@ function mapEventFromApi(item) {
       : item.society?.name
         ? { id: null, name: item.society.name }
         : null,
+    poster: posterKey ? { key: posterKey } : item.poster ?? null,
+    posterKey,
+    posterPreview: item.posterPreview ?? null,
+    rsvp: isGoing,
+    rsvpStatus: normalizedRsvpStatus,
     createdBy: item.createdBy ?? null,
     stats: {
       likes: item.likes ?? 0,
       rsvps: item.rsvps ?? 0,
     },
-    rsvp: false,
-    rsvpStatus: null,
     optimistic: false,
   };
 }
@@ -2341,6 +2412,7 @@ function MySocietyCard({ society, loadingDetail, detailError, onLeave }) {
   const statusLabel = normalizedStatus
     ? formatMembershipStatusLabel(normalizedStatus)
     : society?.membershipStatusLabel ?? null;
+  const isPending = normalizedStatus === "pending";
 
   const counts = society?.counts ?? null;
   const stats = [
@@ -2362,7 +2434,19 @@ function MySocietyCard({ society, loadingDetail, detailError, onLeave }) {
     ? society.recentPosts.slice(0, 2)
     : [];
 
-  const canLeave = typeof onLeave === "function" && societyId && normalizedStatus !== "pending";
+  const handledStatuses = new Set(["active", "pending", "suspended"]);
+
+  const canLeave =
+    typeof onLeave === "function" &&
+    societyId &&
+    (normalizedStatus === "active" || normalizedStatus === "pending");
+
+  const statusPillTone =
+    normalizedStatus === "pending"
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : normalizedStatus === "suspended"
+        ? "border-red-200 bg-red-50 text-red-600"
+        : "border-gray-200 bg-gray-50 text-gray-600";
 
   const handleLeave = useCallback(async () => {
     if (!canLeave) return;
@@ -2420,11 +2504,17 @@ function MySocietyCard({ society, loadingDetail, detailError, onLeave }) {
                   }`}
                   style={{ background: "#f8d2d2", color: "#7f1d1d", border: "1px solid #fca5a5" }}
                 >
-                  {leaving ? "Leaving..." : "Leave society"}
+                  {leaving
+                    ? isPending
+                      ? "Cancelling…"
+                      : "Leaving…"
+                    : isPending
+                      ? "Cancel request"
+                      : "Leave society"}
                 </button>
               )}
-              {!canLeave && statusLabel && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-700">
+              {(!canLeave || !handledStatuses.has(normalizedStatus)) && statusLabel && (
+                <div className={`rounded-xl border px-3 py-1 text-xs ${statusPillTone}`}>
                   Membership {statusLabel.toLowerCase()}
                 </div>
               )}
@@ -2839,11 +2929,14 @@ function InterestChip({ active, label, onClick }) {
       className="rounded-full px-3 py-1 text-sm transition-all"
       style={{
         background: active
-          ? `linear-gradient(135deg, ${colors.plum} 0%, ${colors.lilac} 100%)`
-          : colors.mist,
-        color: active ? "white" : "#333",
-        border: active ? `2px solid ${colors.plum}` : `1px solid ${colors.mist}`,
-        transform: active ? "scale(1.02)" : "scale(1)",
+          ? "linear-gradient(135deg, rgba(110,73,156,0.95) 0%, rgba(159,116,217,0.9) 50%, rgba(236,224,255,0.95) 100%)"
+          : "linear-gradient(135deg, rgba(210,211,222,0.6) 0%, rgba(232,232,238,0.7) 45%, rgba(255,255,255,0.85) 100%)",
+        color: active ? "white" : colors.plum,
+        border: active ? "1px solid rgba(255,255,255,0.35)" : `1px solid ${colors.mist}`,
+        boxShadow: active
+          ? "0 8px 16px rgba(122, 79, 189, 0.25)"
+          : "0 4px 10px rgba(76, 64, 106, 0.08)",
+        transform: active ? "translateY(-1px) scale(1.03)" : "scale(1)",
       }}
     >
       {label}
@@ -2879,8 +2972,14 @@ function ExploreSocietyModal({
     { label: "Events", value: counts.events },
     { label: "Posts", value: counts.posts },
   ].filter((item) => item.value != null);
-
-  const recentEvents = Array.isArray(society?.recentEvents) ? society.recentEvents : [];
+  const now = Date.now();
+  const recentEvents = Array.isArray(society?.recentEvents)
+    ? society.recentEvents.filter((event) => {
+        if (!event?.startsAt) return false;
+        const starts = Date.parse(event.startsAt);
+        return Number.isFinite(starts) && starts >= now;
+      })
+    : [];
   const recentPosts = Array.isArray(society?.recentPosts) ? society.recentPosts : [];
 
   const logoKey = society?.logo?.key ?? society?.logoKey ?? null;
@@ -2956,18 +3055,16 @@ function ExploreSocietyModal({
                   <button
                     type="button"
                     onClick={onToggleMembership}
-                    disabled={membershipLoading || statusLoading || !onToggleMembership || isPending}
+                    disabled={membershipLoading || statusLoading || !onToggleMembership}
                     className={`rounded-2xl px-4 py-2 text-sm text-white transition-opacity ${
-                      membershipLoading || statusLoading || isPending
-                        ? "opacity-60 cursor-not-allowed"
-                        : "hover:opacity-90"
+                      membershipLoading || statusLoading ? "opacity-60 cursor-not-allowed" : "hover:opacity-90"
                     }`}
-                    style={{ background: joined ? colors.plum : colors.lilac }}
+                    style={{ background: joined || isPending ? colors.plum : colors.lilac }}
                   >
                     {membershipLoading || statusLoading
                       ? "Processing..."
                       : isPending
-                        ? "Request pending"
+                        ? "Cancel request"
                         : joined
                           ? "Leave society"
                           : "Request to join"}
@@ -2978,7 +3075,7 @@ function ExploreSocietyModal({
                   {isPending && (
                     <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                       <Clock size={14} />
-                      <span>Your membership request is being reviewed. We'll notify you once the society responds.</span>
+                      <span>Your membership request is being reviewed. You can cancel it while you wait.</span>
                     </div>
                   )}
                   {statusError && !isPending && (
@@ -3413,6 +3510,7 @@ function NotificationsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [markingIds, setMarkingIds] = useState(() => new Set());
+  const { setUnseenCount } = useNotifications();
 
   const loadNotifications = useCallback(
     async (pageToLoad = 1, { append = false } = {}) => {
@@ -3451,6 +3549,10 @@ function NotificationsPage() {
     () => notifications.filter((item) => !item.seenAt).length,
     [notifications]
   );
+
+  useEffect(() => {
+    setUnseenCount(unseenCount);
+  }, [unseenCount, setUnseenCount]);
 
   const handleMarkSeen = useCallback(
     async (notificationId) => {
@@ -3762,17 +3864,80 @@ function EventCard({ event, onToggleRsvp }) {
     { label: "Likes", value: event.stats?.likes ?? 0 },
     event.capacity != null ? { label: "Capacity", value: event.capacity } : null,
   ].filter(Boolean);
+  const posterKey = event.poster?.key ?? event.posterKey ?? null;
+  const [posterReloadKey, setPosterReloadKey] = useState(0);
+  const [posterError, setPosterError] = useState(false);
+  const shouldLoadPoster = Boolean(posterKey) && (posterReloadKey > 0 || !event.posterPreview);
+  const posterMedia = useMemo(
+    () =>
+      shouldLoadPoster
+        ? [{ key: posterKey, position: posterReloadKey }]
+        : [],
+    [shouldLoadPoster, posterKey, posterReloadKey]
+  );
+  const posterItems = useMediaPreviews(posterMedia);
+  const posterEntry = posterItems[0] ?? null;
+  const posterUrl = posterEntry?.url || event.posterPreview || null;
+  const posterLoading = shouldLoadPoster && (posterEntry?.loading ?? true) && !posterError;
+  const posterErrored = posterError || (shouldLoadPoster && posterEntry?.error);
+
+  useEffect(() => {
+    if (posterEntry?.url) {
+      setPosterError(false);
+    }
+  }, [posterEntry?.url]);
+
+  const handlePosterError = useCallback(() => {
+    if (!posterKey) {
+      setPosterError(true);
+      return;
+    }
+
+    invalidateDownloadUrl(posterKey);
+
+    setPosterReloadKey((prev) => {
+      if (prev >= 2) {
+        setPosterError(true);
+        return prev;
+      }
+      setPosterError(false);
+      return prev + 1;
+    });
+  }, [posterKey]);
 
   return (
     <div className="overflow-hidden rounded-3xl border border-mediumpur/20 bg-white shadow-sm">
       <div className="flex flex-col xl:flex-row">
-        <div
-          className="flex items-center justify-center px-6 py-12 text-sm text-white/90 xl:w-1/3"
-          style={{
-            background: `linear-gradient(135deg, ${colors.lilac} 0%, ${colors.plum} 70%, rgba(255,255,255,0.95) 100%)`,
-          }}
-        >
-          <span className="text-center">Event artwork coming soon</span>
+        <div className="flex items-center justify-center xl:w-1/3 bg-white">
+          <div className="relative w-full">
+            {posterLoading ? (
+              <div
+                className="flex h-full min-h-[240px] w-full items-center justify-center bg-gradient-to-br from-lilac/60 to-plum/80 text-white/90"
+                style={{ minHeight: "240px" }}
+              >
+                <Loader2 size={28} className="animate-spin" />
+              </div>
+            ) : posterUrl ? (
+              <img
+                src={posterUrl}
+                alt={event.title ?? "Event poster"}
+                className="h-full w-full object-cover"
+                style={{ minHeight: "240px" }}
+                onError={handlePosterError}
+              />
+            ) : (
+              <div className="flex h-full min-h-[240px] w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-lilac/40 to-plum/70 px-6 py-12 text-center text-sm text-white/90">
+                <img
+                  src={FALLBACK_IMAGE_URL}
+                  alt="Event artwork placeholder"
+                  className="h-24 w-24 rounded-2xl object-contain bg-white/80 p-4 shadow-lg"
+                />
+                <span>
+                  {posterErrored ? "We couldn't load the event artwork." : "Event artwork not provided yet."}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex-1 space-y-4 p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -4140,6 +4305,7 @@ function StudentDashboardApp() {
   const [studentPosts, setStudentPosts] = useState([]);
   const [studentPostsLoading, setStudentPostsLoading] = useState(true);
   const [studentPostsError, setStudentPostsError] = useState(null);
+  const [unseenNotifications, setUnseenNotifications] = useState(0);
 
   const normalizePost = (post) => ({
     ...post,
@@ -4151,6 +4317,24 @@ function StudentDashboardApp() {
   useEffect(() => {
     setDashboardState(fallbackDashboard);
     setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const payload = await listNotifications({ page: 1, limit: 1 });
+        if (!cancelled) setUnseenNotifications(payload?.unread ?? 0);
+      } catch (err) {
+        if (!cancelled && import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn("Failed to prefetch notification count", err);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadDashboardRecommendations = useCallback(async () => {
@@ -4339,9 +4523,15 @@ function StudentDashboardApp() {
         );
         responses.forEach((entry) => {
           if (entry.status === "fulfilled") {
-            const chunk = Array.isArray(entry.value?.data)
-              ? entry.value.data.map(mapEventFromApi).filter(Boolean)
-              : [];
+            const payload = entry.value;
+            const rawList = Array.isArray(payload?.data)
+              ? payload.data
+              : Array.isArray(payload)
+                ? payload
+                : Array.isArray(payload?.events)
+                  ? payload.events
+                  : [];
+            const chunk = rawList.map(mapEventFromApi).filter(Boolean);
             results.push(...chunk);
           } else if (entry.reason) {
             errors.push(entry.reason);
@@ -4361,7 +4551,29 @@ function StudentDashboardApp() {
         return safeA - safeB;
       });
 
-      setStudentEvents(deduped);
+      const dedupedWithPreviews = await Promise.all(
+        deduped.map(async (event) => {
+          const posterKey = event.posterKey ?? event.poster?.key ?? null;
+          if (!posterKey) return event;
+          try {
+            const url = await getCachedDownloadUrl(posterKey);
+            return {
+              ...event,
+              poster: event.poster ?? { key: posterKey },
+              posterKey,
+              posterPreview: url,
+            };
+          } catch {
+            return {
+              ...event,
+              poster: event.poster ?? { key: posterKey },
+              posterKey,
+            };
+          }
+        })
+      );
+
+      setStudentEvents(dedupedWithPreviews);
       if (errors.length > 0) {
         const primaryError = errors[0];
         setStudentEventsError(primaryError);
@@ -4547,6 +4759,11 @@ function StudentDashboardApp() {
 
   const handleLeaveSociety = useCallback(async (societyId) => {
     const idString = String(societyId);
+    const targetSociety = studentSocieties.find((society) => getSocietyId(society) === idString);
+    const wasPending =
+      normalizeMembershipStatusValue(
+        targetSociety?.membershipStatus ?? targetSociety?.status ?? null
+      ) === "pending";
     let snapshot;
     setDashboardState((prev) => {
       snapshot = prev;
@@ -4573,7 +4790,7 @@ function StudentDashboardApp() {
         };
       });
       push({
-        title: "Left society",
+        title: wasPending ? "Membership request cancelled" : "Left society",
         tone: "success",
       });
       setStudentSocieties((prev) => prev.filter((society) => getSocietyId(society) !== idString));
@@ -4590,7 +4807,7 @@ function StudentDashboardApp() {
       });
       return false;
     }
-  }, [push, loadStudentEvents, loadStudentPosts]);
+  }, [push, loadStudentEvents, loadStudentPosts, studentSocieties]);
 
   const handleJoinSociety = useCallback(async (societyId) => {
     try {
@@ -4626,18 +4843,25 @@ function StudentDashboardApp() {
     [studentEvents]
   );
 
+  const notificationsContextValue = useMemo(
+    () => ({ unseenCount: unseenNotifications, setUnseenCount: setUnseenNotifications }),
+    [unseenNotifications]
+  );
+
   return (
-    <Shell
-      page={page}
-      setPage={setPage}
-      student={studentSummary}
-      studentLoading={studentSummaryLoading}
-    >
-      {page === "dashboard" && (
-        <DashboardPage
-          loading={dashboardLoading}
-          summary={{
-            activeSocieties: activeSocietiesCount,
+    <NotificationsContext.Provider value={notificationsContextValue}>
+      <Shell
+        page={page}
+        setPage={setPage}
+        student={studentSummary}
+        studentLoading={studentSummaryLoading}
+        unseenNotifications={unseenNotifications}
+      >
+        {page === "dashboard" && (
+          <DashboardPage
+            loading={dashboardLoading}
+            summary={{
+              activeSocieties: activeSocietiesCount,
             upcomingEvents: upcomingEventsCount,
             newMatches: dashboardRecommendations.length,
           }}
@@ -4649,10 +4873,11 @@ function StudentDashboardApp() {
           onSeeAllRecommendations={() => setPage("explore")}
         />
       )}
-      {page === "profile" && <ProfilePage />}
-      {page === "explore" && (
-        <ExplorePage
-          societies={dashboardState.societies}
+        {page === "profile" && <ProfilePage />}
+        {page === "explore" && (
+          <ExplorePage
+            societies={dashboardState.societies}
+            studentCampus={baseUser.campus ?? null}
           onJoin={handleJoinSociety}
           onLeave={handleLeaveSociety}
         />
@@ -4675,15 +4900,16 @@ function StudentDashboardApp() {
           onToggleRsvp={handleToggleRsvp}
         />
       )}
-      {page === "posts" && (
-        <PostsPage
-          loading={studentPostsLoading}
-          error={studentPostsError}
-          posts={studentPosts}
-          onToggleLike={handleTogglePostLike}
-        />
-      )}
-    </Shell>
+        {page === "posts" && (
+          <PostsPage
+            loading={studentPostsLoading}
+            error={studentPostsError}
+            posts={studentPosts}
+            onToggleLike={handleTogglePostLike}
+          />
+        )}
+      </Shell>
+    </NotificationsContext.Provider>
   );
 }
 

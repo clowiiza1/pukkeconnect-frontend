@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -8,6 +8,7 @@ import {
   uploadFileToPresignedUrl,
   primeDownloadCache,
   invalidateDownloadUrl,
+  getCachedDownloadUrl,
 } from "@/services/uploads.jsx";
 import { useMediaPreviews } from "@/hooks/useMediaPreviews.js";
 //=====MOCK IMAGES FOR MEMBERS ======//
@@ -78,6 +79,8 @@ const colors = {
   lilac: "#ac98cd",
   plum: "#6a509b",
 };
+
+const MAX_EVENT_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
 const FALLBACK_IMAGE_URL = "https://pukkeconnect.s3.eu-central-1.amazonaws.com/imageplaceholder.jpg";
 
@@ -1415,6 +1418,261 @@ function EventsPage() {
     maxAttendees: "",
     category: "Workshop"
   });
+  const [newEventPoster, setNewEventPoster] = useState({
+    file: null,
+    preview: null,
+    isObjectUrl: false,
+    error: null,
+  });
+  const [editPosterState, setEditPosterState] = useState({
+    file: null,
+    preview: null,
+    isObjectUrl: false,
+    key: null,
+    removed: false,
+    loading: false,
+    error: null,
+  });
+  const editPosterFetchAbortRef = useRef(null);
+  const editPosterOriginalKeyRef = useRef(null);
+
+  const updateNewPosterState = useCallback((updater) => {
+    setNewEventPoster((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (prev.isObjectUrl && prev.preview && prev.preview !== next.preview) {
+        URL.revokeObjectURL(prev.preview);
+      }
+      return next;
+    });
+  }, []);
+
+  const updateEditPosterState = useCallback((updater) => {
+    setEditPosterState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (prev.isObjectUrl && prev.preview && prev.preview !== next.preview) {
+        URL.revokeObjectURL(prev.preview);
+      }
+      return next;
+    });
+  }, []);
+
+  const resetNewEventPoster = useCallback(() => {
+    updateNewPosterState(() => ({
+      file: null,
+      preview: null,
+      isObjectUrl: false,
+      error: null,
+    }));
+  }, [updateNewPosterState]);
+
+  const resetEditPosterState = useCallback(() => {
+    if (editPosterFetchAbortRef.current) {
+      editPosterFetchAbortRef.current();
+      editPosterFetchAbortRef.current = null;
+    }
+
+    updateEditPosterState(() => ({
+      file: null,
+      preview: null,
+      isObjectUrl: false,
+      key: null,
+      removed: false,
+      loading: false,
+      error: null,
+    }));
+
+    editPosterOriginalKeyRef.current = null;
+  }, [updateEditPosterState]);
+
+  const handleNewPosterSelect = useCallback(
+    (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      if (!file.type || !file.type.startsWith("image/")) {
+        updateNewPosterState((prev) => ({ ...prev, error: "Please choose an image file." }));
+        return;
+      }
+
+      if (file.size > MAX_EVENT_IMAGE_SIZE_BYTES) {
+        updateNewPosterState((prev) => ({ ...prev, error: "Images must be 10MB or smaller." }));
+        return;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      updateNewPosterState(() => ({
+        file,
+        preview: previewUrl,
+        isObjectUrl: true,
+        error: null,
+      }));
+    },
+    [updateNewPosterState]
+  );
+
+  const handleNewPosterRemove = useCallback(() => {
+    updateNewPosterState(() => ({
+      file: null,
+      preview: null,
+      isObjectUrl: false,
+      error: null,
+    }));
+  }, [updateNewPosterState]);
+
+  const loadEditingPosterPreview = useCallback(
+    (posterKey) => {
+      if (editPosterFetchAbortRef.current) {
+        editPosterFetchAbortRef.current();
+        editPosterFetchAbortRef.current = null;
+      }
+
+      if (!posterKey) {
+        updateEditPosterState(() => ({
+          file: null,
+          preview: null,
+          isObjectUrl: false,
+          key: null,
+          removed: false,
+          loading: false,
+          error: null,
+        }));
+        return;
+      }
+
+      let cancelled = false;
+      const cancelFn = () => {
+        cancelled = true;
+      };
+
+      editPosterFetchAbortRef.current = cancelFn;
+
+      updateEditPosterState(() => ({
+        file: null,
+        preview: null,
+        isObjectUrl: false,
+        key: posterKey,
+        removed: false,
+        loading: true,
+        error: null,
+      }));
+
+      (async () => {
+        try {
+          const url = await getCachedDownloadUrl(posterKey);
+          if (cancelled) return;
+          updateEditPosterState((prev) => ({
+            ...prev,
+            preview: url,
+            loading: false,
+            error: null,
+            isObjectUrl: false,
+          }));
+        } catch {
+          if (cancelled) return;
+          updateEditPosterState((prev) => ({
+            ...prev,
+            preview: null,
+            loading: false,
+            error: "We couldn't load the current event image.",
+          }));
+        } finally {
+          if (!cancelled && editPosterFetchAbortRef.current === cancelFn) {
+            editPosterFetchAbortRef.current = null;
+          }
+        }
+      })();
+    },
+    [updateEditPosterState, getCachedDownloadUrl]
+  );
+
+  const handleEditPosterSelect = useCallback(
+    (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      if (!file.type || !file.type.startsWith("image/")) {
+        updateEditPosterState((prev) => ({ ...prev, error: "Please choose an image file." }));
+        return;
+      }
+
+      if (file.size > MAX_EVENT_IMAGE_SIZE_BYTES) {
+        updateEditPosterState((prev) => ({ ...prev, error: "Images must be 10MB or smaller." }));
+        return;
+      }
+
+      if (editPosterFetchAbortRef.current) {
+        editPosterFetchAbortRef.current();
+        editPosterFetchAbortRef.current = null;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      updateEditPosterState(() => ({
+        file,
+        preview: previewUrl,
+        isObjectUrl: true,
+        key: null,
+        removed: false,
+        loading: false,
+        error: null,
+      }));
+    },
+    [updateEditPosterState]
+  );
+
+  const handleEditPosterRemove = useCallback(() => {
+    if (editPosterFetchAbortRef.current) {
+      editPosterFetchAbortRef.current();
+      editPosterFetchAbortRef.current = null;
+    }
+
+    const originalKey = editPosterOriginalKeyRef.current;
+
+    if (editPosterState.file && originalKey) {
+      loadEditingPosterPreview(originalKey);
+      return;
+    }
+
+    if (editPosterState.file && !originalKey) {
+      updateEditPosterState(() => ({
+        file: null,
+        preview: null,
+        isObjectUrl: false,
+        key: null,
+        removed: true,
+        loading: false,
+        error: null,
+      }));
+      return;
+    }
+
+    updateEditPosterState(() => ({
+      file: null,
+      preview: null,
+      isObjectUrl: false,
+      key: null,
+      removed: true,
+      loading: false,
+      error: null,
+    }));
+  }, [editPosterState.file, loadEditingPosterPreview, updateEditPosterState]);
+
+  useEffect(() => {
+    return () => {
+      if (newEventPoster.isObjectUrl && newEventPoster.preview) {
+        URL.revokeObjectURL(newEventPoster.preview);
+      }
+      if (editPosterState.isObjectUrl && editPosterState.preview) {
+        URL.revokeObjectURL(editPosterState.preview);
+      }
+    };
+  }, [
+    newEventPoster.isObjectUrl,
+    newEventPoster.preview,
+    editPosterState.isObjectUrl,
+    editPosterState.preview,
+  ]);
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState({
@@ -1456,6 +1714,11 @@ function EventsPage() {
         // Transform backend data to match frontend structure
         const transformedEvents = eventsData.map(event => {
           console.log("Transforming event:", event);
+          const posterKey =
+            event.poster?.key ??
+            event.posterKey ??
+            event.poster_storage_key ??
+            null;
           return {
             id: event.eventId || event.id || event.event_id,
             title: event.title,
@@ -1479,13 +1742,27 @@ function EventsPage() {
             startsAt: event.startsAt || event.starts_at,
             endsAt: event.endsAt || event.ends_at,
             status: event.status || 'scheduled',
+            poster: posterKey ? { key: posterKey } : null,
             rsvpList: [] // Will be loaded on demand
           };
         });
 
-        console.log("Transformed events:", transformedEvents);
-        setEvents(transformedEvents);
-        setFilteredEvents(transformedEvents);
+        const eventsWithPreviews = await Promise.all(
+          transformedEvents.map(async (evt) => {
+            if (!evt.poster?.key) return evt;
+            try {
+              const url = await getCachedDownloadUrl(evt.poster.key);
+              return { ...evt, posterPreview: url };
+            } catch (previewError) {
+              console.error("Failed to load event poster preview:", previewError);
+              return evt;
+            }
+          })
+        );
+
+        console.log("Transformed events:", eventsWithPreviews);
+        setEvents(eventsWithPreviews);
+        setFilteredEvents(eventsWithPreviews);
       } catch (err) {
         console.error("Error loading events:", err);
         setError("Failed to load events. Please try again.");
@@ -1563,40 +1840,6 @@ function EventsPage() {
     setSearchQuery("");
   };
 
-  // Handle image upload with preview
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file type and size
-      if (!file.type.startsWith('image/')) {
-        alert("Please upload a valid image file (PNG, JPG, JPEG)");
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        alert("Image must be less than 5MB");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (editingEvent) {
-          setEditingEvent(prev => ({
-            ...prev,
-            poster: file,
-            posterPreview: reader.result
-          }));
-        } else {
-          setNewEvent(prev => ({
-            ...prev,
-            poster: file,
-            posterPreview: reader.result
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   // Validate event data (Main Flow step 3 / Alternative Flow 2a)
   const validateEvent = (event) => {
     const errors = {};
@@ -1639,6 +1882,11 @@ function EventsPage() {
       return;
     }
 
+    if (!societyId) {
+      alert("Society information not loaded yet. Please refresh and try again.");
+      return;
+    }
+
     try {
       // Combine date and time into ISO string
       const dateTimeString = `${newEvent.date}T${newEvent.time}`;
@@ -1651,6 +1899,32 @@ function EventsPage() {
         endsAt = new Date(startsAt.getTime() + durationHours * 60 * 60 * 1000);
       }
 
+      let posterPayload;
+
+      if (newEventPoster.file) {
+        try {
+          const presign = await presignUpload({
+            scope: "event",
+            folder: `posters/society-${societyId}`,
+            fileName: newEventPoster.file.name,
+            contentType: newEventPoster.file.type || "application/octet-stream",
+            size: newEventPoster.file.size,
+          });
+
+          await uploadFileToPresignedUrl(presign.uploadUrl, newEventPoster.file);
+          primeDownloadCache(presign.key, presign.downloadUrl, presign.downloadExpiresIn);
+
+          posterPayload = { key: presign.key };
+        } catch (error) {
+          console.error("Failed to upload event poster:", error);
+          updateNewPosterState((prev) => ({
+            ...prev,
+            error: "Failed to upload event poster. Please try again.",
+          }));
+          return;
+        }
+      }
+
       const eventData = {
         title: newEvent.title,
         description: newEvent.description,
@@ -1660,7 +1934,21 @@ function EventsPage() {
         capacity: newEvent.maxAttendees ? parseInt(newEvent.maxAttendees) : null
       };
 
+      if (posterPayload) {
+        eventData.poster = posterPayload;
+      }
+
       const createdEvent = await createEvent(societyId, eventData);
+
+      const createdPoster = createdEvent.poster ?? posterPayload ?? null;
+      let posterPreview = null;
+      if (createdPoster?.key) {
+        try {
+          posterPreview = await getCachedDownloadUrl(createdPoster.key);
+        } catch (previewError) {
+          console.error("Failed to load created event poster preview:", previewError);
+        }
+      }
 
       // Transform and add to local state
       const transformedEvent = {
@@ -1680,7 +1968,9 @@ function EventsPage() {
         rsvp: 0,
         capacity: createdEvent.capacity,
         startsAt: createdEvent.startsAt || createdEvent.starts_at,
-        endsAt: createdEvent.endsAt || createdEvent.ends_at
+        endsAt: createdEvent.endsAt || createdEvent.ends_at,
+        poster: createdPoster,
+        posterPreview,
       };
 
       setEvents(prev => [...prev, transformedEvent]);
@@ -1695,6 +1985,7 @@ function EventsPage() {
         maxAttendees: "",
         category: "Workshop"
       });
+      resetNewEventPoster();
     } catch (error) {
       console.error("Error creating event:", error);
       alert("Failed to create event. Please try again.");
@@ -1704,6 +1995,7 @@ function EventsPage() {
   // Start editing an event
   const handleEdit = (event) => {
     console.log("Editing event:", event);
+    resetEditPosterState();
 
     // Extract date and time from startsAt
     const startsAt = new Date(event.startsAt);
@@ -1730,6 +2022,13 @@ function EventsPage() {
     console.log("Edit data:", editData);
     setEditingEvent(editData);
     setOriginalEvent(editData); // Save original for comparison
+    const posterKey =
+      event.poster?.key ??
+      event.posterKey ??
+      event.poster_storage_key ??
+      null;
+    editPosterOriginalKeyRef.current = posterKey;
+    loadEditingPosterPreview(posterKey);
   };
 
   // Save edited event
@@ -1737,6 +2036,11 @@ function EventsPage() {
     const errors = validateEvent(editingEvent);
     if (Object.keys(errors).length > 0) {
       alert("Please fix the following errors:\n" + Object.values(errors).join('\n'));
+      return;
+    }
+
+    if (!societyId) {
+      alert("Society information not loaded yet. Please refresh and try again.");
       return;
     }
 
@@ -1755,6 +2059,41 @@ function EventsPage() {
         endsAt = new Date(startsAt.getTime() + durationHours * 60 * 60 * 1000);
       }
 
+      const originalPosterKey = editPosterOriginalKeyRef.current;
+      let posterPayload;
+
+      if (editPosterState.file) {
+        try {
+          const folderSegments = ["posters", `society-${societyId}`];
+          if (editingEvent.id) {
+            folderSegments.push(`event-${editingEvent.id}`);
+          }
+
+          const presign = await presignUpload({
+            scope: "event",
+            folder: folderSegments.join("/"),
+            fileName: editPosterState.file.name,
+            contentType: editPosterState.file.type || "application/octet-stream",
+            size: editPosterState.file.size,
+          });
+
+          await uploadFileToPresignedUrl(presign.uploadUrl, editPosterState.file);
+          primeDownloadCache(presign.key, presign.downloadUrl, presign.downloadExpiresIn);
+
+          posterPayload = { key: presign.key };
+        } catch (error) {
+          console.error("Failed to upload event poster:", error);
+          updateEditPosterState((prev) => ({
+            ...prev,
+            error: "Failed to upload event poster. Please try again.",
+            loading: false,
+          }));
+          return;
+        }
+      } else if (editPosterState.removed && originalPosterKey) {
+        posterPayload = null;
+      }
+
       const eventData = {
         title: editingEvent.title,
         description: editingEvent.description,
@@ -1764,10 +2103,37 @@ function EventsPage() {
         capacity: editingEvent.maxAttendees ? parseInt(editingEvent.maxAttendees) : editingEvent.capacity
       };
 
+      if (posterPayload !== undefined) {
+        eventData.poster = posterPayload;
+      }
+
       console.log("Event data to update:", eventData);
       const updatedEvent = await updateEvent(editingEvent.id, eventData);
 
       // Transform and update local state
+      const updatedPoster =
+        updatedEvent.poster ??
+        (posterPayload !== undefined ? posterPayload : editingEvent.poster ?? null);
+      let posterPreview = editingEvent.posterPreview ?? null;
+
+      if (posterPayload?.key) {
+        try {
+          posterPreview = await getCachedDownloadUrl(posterPayload.key);
+        } catch (previewError) {
+          console.error("Failed to load updated event poster preview:", previewError);
+          posterPreview = null;
+        }
+      } else if (posterPayload === null) {
+        posterPreview = null;
+      } else if (updatedPoster?.key && !posterPreview) {
+        try {
+          posterPreview = await getCachedDownloadUrl(updatedPoster.key);
+        } catch (previewError) {
+          console.error("Failed to refresh event poster preview:", previewError);
+          posterPreview = null;
+        }
+      }
+
       const transformedEvent = {
         id: updatedEvent.eventId || updatedEvent.id || updatedEvent.event_id,
         title: updatedEvent.title,
@@ -1785,11 +2151,24 @@ function EventsPage() {
         rsvp: editingEvent.rsvp || 0,
         capacity: updatedEvent.capacity,
         startsAt: updatedEvent.startsAt || updatedEvent.starts_at,
-        endsAt: updatedEvent.endsAt || updatedEvent.ends_at
+        endsAt: updatedEvent.endsAt || updatedEvent.ends_at,
+        poster: updatedPoster,
+        posterPreview,
       };
 
       setEvents(prev => prev.map(e => e.id === editingEvent.id ? transformedEvent : e));
       setEditingEvent(null);
+      setOriginalEvent(null);
+      if (posterPayload?.key) {
+        if (originalPosterKey && originalPosterKey !== posterPayload.key) {
+          invalidateDownloadUrl(originalPosterKey);
+        }
+        editPosterOriginalKeyRef.current = posterPayload.key;
+      } else if (posterPayload === null && originalPosterKey) {
+        invalidateDownloadUrl(originalPosterKey);
+        editPosterOriginalKeyRef.current = null;
+      }
+      resetEditPosterState();
     } catch (error) {
       console.error("Error updating event:", error);
       alert("Failed to update event. Please try again.");
@@ -1879,6 +2258,11 @@ function EventsPage() {
   const hasEventChanged = () => {
     if (!editingEvent || !originalEvent) return false;
 
+    const originalPosterKey = editPosterOriginalKeyRef.current;
+    const posterChanged =
+      Boolean(editPosterState.file) ||
+      (editPosterState.removed && Boolean(originalPosterKey));
+
     return (
       editingEvent.title !== originalEvent.title ||
       editingEvent.description !== originalEvent.description ||
@@ -1887,7 +2271,8 @@ function EventsPage() {
       editingEvent.duration !== originalEvent.duration ||
       editingEvent.location !== originalEvent.location ||
       editingEvent.maxAttendees !== originalEvent.maxAttendees ||
-      editingEvent.category !== originalEvent.category
+      editingEvent.category !== originalEvent.category ||
+      posterChanged
     );
   };
 
@@ -1896,6 +2281,8 @@ function EventsPage() {
     setIsCreating(false);
     setEditingEvent(null);
     setOriginalEvent(null);
+    resetNewEventPoster();
+    resetEditPosterState();
     setNewEvent({
       title: "",
       description: "",
@@ -1973,7 +2360,10 @@ function EventsPage() {
         </div>
         
         <button
-          onClick={() => setIsCreating(true)}
+          onClick={() => {
+            resetNewEventPoster();
+            setIsCreating(true);
+          }}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-white hover:opacity-90 transition whitespace-nowrap text-sm"
           style={{ background: colors.plum }}
         >
@@ -2038,10 +2428,60 @@ function EventsPage() {
                   className="w-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-6 bg-gray-50"
                   style={{ borderColor: colors.mist }}
                 >
-                  <ImagePlus className="h-10 w-10 text-gray-400 mb-2" />
-                  <span className="text-gray-500 text-sm font-medium">Coming Soon</span>
-                  <span className="text-gray-400 text-xs mt-1">Photo upload functionality</span>
+                  {newEventPoster.preview ? (
+                    <>
+                      <img
+                        src={newEventPoster.preview}
+                        alt="Event poster preview"
+                        className="w-full h-56 object-cover rounded-xl"
+                      />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <label
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm text-white cursor-pointer"
+                          style={{ background: colors.plum }}
+                        >
+                          <ImagePlus className="w-4 h-4" />
+                          Change photo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleNewPosterSelect}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleNewPosterRemove}
+                          className="px-3 py-1.5 rounded-xl border border-gray-300 text-sm hover:bg-gray-100 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <ImagePlus className="h-10 w-10 text-gray-400 mb-2" />
+                      <span className="text-gray-500 text-sm font-medium">Upload event poster</span>
+                      <span className="text-gray-400 text-xs mt-1">JPG or PNG up to 10MB</span>
+                      <label
+                        className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm text-white cursor-pointer"
+                        style={{ background: colors.plum }}
+                      >
+                        <ImagePlus className="w-4 h-4" />
+                        Choose file
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleNewPosterSelect}
+                        />
+                      </label>
+                    </>
+                  )}
                 </div>
+                {newEventPoster.error && (
+                  <p className="mt-2 text-xs text-red-500 text-left">{newEventPoster.error}</p>
+                )}
               </div>
 
               {/* Event Details Form */}
@@ -2191,10 +2631,65 @@ function EventsPage() {
                   className="w-full rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center p-6 bg-gray-50"
                   style={{ borderColor: colors.mist }}
                 >
-                  <ImagePlus className="h-10 w-10 text-gray-400 mb-2" />
-                  <span className="text-gray-500 text-sm font-medium">Coming Soon</span>
-                  <span className="text-gray-400 text-xs mt-1">Photo upload functionality</span>
+                  {editPosterState.loading ? (
+                    <div className="flex flex-col items-center gap-2 py-8 text-gray-500 text-sm">
+                      <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                      Loading current poster…
+                    </div>
+                  ) : editPosterState.preview ? (
+                    <>
+                      <img
+                        src={editPosterState.preview}
+                        alt="Event poster preview"
+                        className="w-full h-56 object-cover rounded-xl"
+                      />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <label
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm text-white cursor-pointer"
+                          style={{ background: colors.plum }}
+                        >
+                          <ImagePlus className="w-4 h-4" />
+                          Change photo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleEditPosterSelect}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleEditPosterRemove}
+                          className="px-3 py-1.5 rounded-xl border border-gray-300 text-sm hover:bg-gray-100 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <ImagePlus className="h-10 w-10 text-gray-400 mb-2" />
+                      <span className="text-gray-500 text-sm font-medium">Upload event poster</span>
+                      <span className="text-gray-400 text-xs mt-1">JPG or PNG up to 10MB</span>
+                      <label
+                        className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm text-white cursor-pointer"
+                        style={{ background: colors.plum }}
+                      >
+                        <ImagePlus className="w-4 h-4" />
+                        Choose file
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleEditPosterSelect}
+                        />
+                      </label>
+                    </>
+                  )}
                 </div>
+                {editPosterState.error && !editPosterState.loading && (
+                  <p className="mt-2 text-xs text-red-500 text-left">{editPosterState.error}</p>
+                )}
               </div>
 
               {/* Event Details Form */}
@@ -5106,14 +5601,6 @@ function SettingsPage() {
                     <div className="text-xs opacity-70">{formData.email}</div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="rounded-2xl px-3 py-1 text-sm text-white opacity-60"
-                  style={{ background: colors.plum }}
-                  disabled
-                >
-                  Photo uploads coming soon
-                </button>
               </div>
             </div>
 
