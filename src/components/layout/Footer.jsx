@@ -72,7 +72,7 @@ export default function Footer() {
 
       {/* Bottom Bar */}
       <div className="border-t border-white/20 mt-6 py-4 text-center text-xs text-white/60">
-        © 2024 Pukke Connect. All rights reserved.
+        © 2025 Pukke Connect. All rights reserved.
       </div>
     </footer>
   );
